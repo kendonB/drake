@@ -5,7 +5,7 @@
 #' \code{\link{built}}, \code{link{imported}}, \code{\link{workplan}},
 #' \code{\link{make}}
 #' @export
-#' @return drake target item from the cache
+#' @return The cached value of the \code{target}.
 #' @param target If \code{character_only} is \code{TRUE},
 #' \code{target} is a character string naming the object to read.
 #' Otherwise, \code{target} is an unquoted symbol with the name of the
@@ -22,21 +22,24 @@
 #' @param cache optional drake cache. See code{\link{new_cache}()}.
 #' If \code{cache} is supplied,
 #' the \code{path} and \code{search} arguments are ignored.
+#' @param verbose whether to print console messages
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' make(my_plan)
-#' readd(reg1)
-#' readd(small)
-#' readd("large", character_only = TRUE)
-#' readd("'report.md'") # just a fingerprint of the file (md5 sum)
+#' load_basic_example() # Load drake's canonical example.
+#' make(my_plan) # Run the project, build the targets.
+#' readd(reg1) # Return imported object 'reg1' from the cache.
+#' readd(small) # Return targets 'small' from the cache.
+#' readd("large", character_only = TRUE) Return target 'large' from the cache.
+#' # For external files, only the fingerprint/hash is stored.
+#' readd("'report.md'")
 #' }
 readd <- function(
   target,
   character_only = FALSE,
   path = getwd(),
   search = TRUE,
-  cache = drake::get_cache(path = path, search = search)
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
+  verbose = TRUE
   ){
   # if the cache is null after trying get_cache:
   if (is.null(cache)){
@@ -45,13 +48,7 @@ readd <- function(
   if (!character_only){
     target <- as.character(substitute(target))
   }
-  store <- cache$get(target)
-  if (store$type == "function"){
-    value <- cache$get(key = target, namespace = "functions")
-  } else{
-    value <- store$value
-  }
-  return(value)
+  cache$get(target, namespace = cache$default_namespace)
 }
 
 #' @title Function \code{loadd}
@@ -64,6 +61,7 @@ readd <- function(
 #' @seealso \code{\link{cached}}, \code{\link{built}},
 #' \code{\link{imported}}, \code{\link{workplan}}, \code{\link{make}},
 #' @export
+#' @return \code{NULL}
 #'
 #' @param ... targets to load from the cache, as names (unquoted)
 #' or character strings (quoted). Similar to \code{...} in
@@ -96,17 +94,21 @@ readd <- function(
 #' just set jobs to be an integer greater than 1. On Windows,
 #' \code{jobs} is automatically demoted to 1.
 #'
+#' @param verbose whether to print console messages
+#'
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' make(my_plan)
-#' loadd(reg1) # now check ls()
-#' reg1
-#' loadd(small)
+#' load_basic_example() # Load drake's canonical example.
+#' make(my_plan) # Run the projects, build the targets.
+#' loadd(small) # Load target 'small' into your workspace.
 #' small
+#' # For many targets, you can parallelize loadd()
+#' # using the 'jobs' argument.
 #' loadd(list = c("small", "large"), jobs = 2)
-#' loadd(imported_only = TRUE) # load all imported objects and functions
-#' loadd() # load everything, including built targets
+#' loadd(imported_only = TRUE) # Load all the imported objects/functions.
+#' # Load everything, including built targets. Be sure your computer
+#' # has enough memory.
+#' loadd()
 #' }
 loadd <- function(
   ...,
@@ -114,9 +116,10 @@ loadd <- function(
   imported_only = FALSE,
   path = getwd(),
   search = TRUE,
-  cache = drake::get_cache(path = path, search = search),
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
   envir = parent.frame(),
-  jobs = 1
+  jobs = 1,
+  verbose = TRUE
 ){
   if (is.null(cache)){
     stop("cannot find drake cache.")
@@ -125,36 +128,40 @@ loadd <- function(
   dots <- match.call(expand.dots = FALSE)$...
   targets <- targets_from_dots(dots, list)
   if (!length(targets)){
-    targets <- cache$list()
+    targets <- cache$list(namespace = cache$default_namespace)
   }
   if (imported_only){
-    targets <- imported_only(targets = targets, cache = cache)
+    plan <- read_plan(cache = cache)
+    targets <- imported_only(targets = targets, plan = plan)
   }
   if (!length(targets)){
     stop("no targets to load.")
   }
   lightly_parallelize(
-    X = targets, FUN = load_target, cache = cache, envir = envir
+    X = targets, FUN = load_target, cache = cache,
+    envir = envir, verbose = verbose
   )
   invisible()
 }
 
-load_target <- function(target, cache, envir){
+load_target <- function(target, cache, envir, verbose){
   value <- readd(
     target,
     character_only = TRUE,
-    cache = cache
+    cache = cache,
+    verbose = verbose
   )
   assign(x = target, value = value, envir = envir)
 }
 
-#' @title Function \code{read_config}
+#' @title Function \code{read_drake_config}
 #' @description Read all the configuration parameters
 #' from your last attempted call to \code{\link{make}()}.
 #' These include the workflow plan
 #' @seealso \code{\link{make}}
 #' @export
-#' @return a named list of configuration items
+#' @return The cached master internal configuration list
+#' of the last \code{\link{make}()}.
 #' @param cache optional drake cache. See code{\link{new_cache}()}.
 #' If \code{cache} is supplied,
 #' the \code{path} and \code{search} arguments are ignored.
@@ -164,26 +171,30 @@ load_target <- function(target, cache, envir){
 #' @param search logical. If \code{TRUE}, search parent directories
 #' to find the nearest drake cache. Otherwise, look in the
 #' current working directory only.
+#' @param verbose whether to print console messages
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' make(my_plan)
-#' read_config()
+#' load_basic_example() # Load drake's canonical example.
+#' make(my_plan) # Run the project, build the targets.
+#' # Retrieve the master internal configuration list from the cache.
+#' read_drake_config()
 #' }
-read_config <- function(path = getwd(), search = TRUE,
-  cache = drake::get_cache(path = path, search = search)
+read_drake_config <- function(path = getwd(), search = TRUE,
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
+  verbose = TRUE
 ){
   if (is.null(cache)) {
     stop("cannot find drake cache.")
   }
-  sapply(
-    cache$list(namespace = "config"),
-    function(item){
+  keys <- cache$list(namespace = "config")
+  out <- lapply(
+    X = keys,
+    FUN = function(item){
       cache$get(key = item, namespace = "config")
-    },
-    simplify = FALSE,
-    USE.NAMES = TRUE
-    )
+    }
+  )
+  names(out) <- keys
+  out
 }
 
 #' @title Function \code{read_plan}
@@ -191,7 +202,7 @@ read_config <- function(path = getwd(), search = TRUE,
 #' from your last attempted call to \code{\link{make}()}.
 #' @seealso \code{\link{read_config}}
 #' @export
-#' @return a workflow plan data frame
+#' @return A workflow plan data frame.
 #' @param cache optional drake cache. See code{\link{new_cache}()}.
 #' If \code{cache} is supplied,
 #' the \code{path} and \code{search} arguments are ignored.
@@ -201,27 +212,29 @@ read_config <- function(path = getwd(), search = TRUE,
 #' @param search logical. If \code{TRUE}, search parent directories
 #' to find the nearest drake cache. Otherwise, look in the
 #' current working directory only.
+#' @param verbose whether to print console messages
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' make(my_plan)
-#' read_plan()
+#' load_basic_example() # Load the canonical example.
+#' make(my_plan) # Run the project, build the targets.
+#' read_plan() # Retrieve the workflow plan data frame from the cache.
 #' }
 read_plan <- function(path = getwd(), search = TRUE,
-  cache = drake::get_cache(path = path, search = search)
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
+  verbose = TRUE
 ){
-  read_config(path = path, search = search, cache = cache)$plan
+  read_drake_config(path = path, search = search, cache = cache)$plan
 }
 
-#' @title Function \code{read_graph}
+#' @title Function \code{read_drake_graph}
 #' @description Read the igraph-style dependency graph of your targets
 #' from your last attempted call to \code{\link{make}()}.
-#' For better graphing utilities, see \code{\link{plot_graph}()}
+#' For better graphing utilities, see \code{\link{vis_drake_graph}()}
 #' and related functions.
-#' @seealso \code{\link{plot_graph}}, \code{\link{read_config}}
+#' @seealso \code{\link{vis_drake_graph}}, \code{\link{read_config}}
 #' @export
-#' @return either a plot or an igraph object, depending
-#' on \code{plot}
+#' @return An \code{igraph} object representing the dependency
+#' network of the workflow.
 #' @param cache optional drake cache. See code{\link{new_cache}()}.
 #' If \code{cache} is supplied,
 #' the \code{path} and \code{search} arguments are ignored.
@@ -231,19 +244,22 @@ read_plan <- function(path = getwd(), search = TRUE,
 #' @param search logical. If \code{TRUE}, search parent directories
 #' to find the nearest drake cache. Otherwise, look in the
 #' current working directory only.
-#' @param ... arguments to \code{visNetwork()} via \code{\link{plot_graph}()}
+#' @param verbose logical, whether to print console messages
+#' @param ... arguments to \code{visNetwork()} via
+#' \code{\link{vis_drake_graph}()}
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' make(my_plan)
-#' g <- read_graph(plot = FALSE)
-#' class(g)
-#' read_graph() # Actually plot the graph as an interactive visNetwork widget.
+#' load_basic_example() # Load the canonical example.
+#' make(my_plan) # Run the project, build the targets.
+#' # Retrieve the igraph network from the cache.
+#' g <- read_drake_graph()
+#' class(g) # "igraph"
 #' }
-read_graph <- function(path = getwd(), search = TRUE,
-  cache = drake::get_cache(path = path, search = search),
+read_drake_graph <- function(path = getwd(), search = TRUE,
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
+  verbose = TRUE,
   ...
 ){
-  config <- read_config(path = path, search = search, cache = cache)
+  config <- read_drake_config(path = path, search = search, cache = cache)
   return(config$graph)
 }

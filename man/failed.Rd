@@ -5,7 +5,7 @@
 \title{Function \code{failed}}
 \usage{
 failed(path = getwd(), search = TRUE, cache = drake::get_cache(path =
-  path, search = search))
+  path, search = search, verbose = verbose), verbose = TRUE)
 }
 \arguments{
 \item{path}{Root directory of the drake project,
@@ -19,9 +19,11 @@ current working directory only.}
 \item{cache}{optional drake cache. See code{\link{new_cache}()}.
 If \code{cache} is supplied,
 the \code{path} and \code{search} arguments are ignored.}
+
+\item{verbose}{whether to print console messages}
 }
 \value{
-A character vector of target names
+A character vector of target names.
 }
 \description{
 List the targets that failed in the last call
@@ -32,13 +34,14 @@ for ordinary error messages printed to the console.
 }
 \examples{
 \dontrun{
-load_basic_example()
-make(my_plan)
-failed() # nothing
+load_basic_example() # Load drake's canonical example.
+make(my_plan) # Run the project, build the targets.
+failed() # Should show that no targets failed.
+# Build a workflow plan doomed to fail:
 bad_plan <- workplan(x = function_doesnt_exist())
 make(bad_plan) # error
 failed() # "x"
-diagnose(x)
+diagnose(x) # Retrieve the cached error log of x.
 }
 }
 \seealso{

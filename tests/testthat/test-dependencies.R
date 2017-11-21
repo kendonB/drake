@@ -44,24 +44,65 @@ test_with_dir(
 
 test_with_dir("tracked() works", {
   config <- dbug()
-  x <- sort(tracked(plan = config$plan, envir = config$envir))
+  x <- sort(
+    tracked(plan = config$plan, envir = config$envir, verbose = FALSE))
   y <- sort(c("'intermediatefile.rds'",
     "yourinput", "nextone",
     "combined", "myinput", "final", "j", "i", "h", "g", "f",
     "c", "b", "a", "saveRDS", "'input.rds'", "readRDS"))
   expect_equal(x, y)
   x <- sort(tracked(plan = config$plan, targets = "myinput",
-    envir = config$envir))
+    envir = config$envir, verbose = FALSE))
   y <- sort(c("myinput", "'input.rds'", "readRDS"))
   expect_equal(x, y)
 })
 
-test_with_dir("missing files via check()", {
+test_with_dir("missing files via check_plan()", {
   config <- dbug()
-  expect_output(check(config$plan, envir = config$envir))
+  expect_message(check_plan(config$plan, envir = config$envir))
   expect_silent(tmp <- missing_input_files(config))
   unlink("input.rds", force = TRUE)
   expect_warning(
-    tmp <- capture.output(check(config$plan, envir = config$envir)))
+    tmp <- capture.output(check_plan(config$plan, envir = config$envir)))
   expect_warning(tmp <- missing_input_files(config))
+})
+
+test_with_dir("Vectorized nested functions work", {
+  e <- new.env(parent = globalenv())
+  eval(parse(text = "f <- Vectorize(function(x) g(x), \"x\")"),
+       envir = e)
+  eval(parse(text = "g <- function(x) x + y"), envir = e)
+  e$y <- 7
+  config <- dbug()
+  config$envir <- e
+  config$plan <- workplan(a = f(1:10))
+  config$targets <- "a"
+  expect_equal(deps(e$f), "g")
+  expect_equal(deps(e$g), "y")
+
+  testrun(config)
+  if ("a" %in% ls(config$envir)){
+    rm(a, envir = config$envir)
+  }
+  expect_equal(readd(a), 8:17)
+  k <- readd(f)
+  expect_equal(k(2:5), 9:12)
+  expect_equal(character(0), outdated(config$plan, envir = config$envir,
+                                      verbose = FALSE))
+  config$envir$y <- 8
+  expect_equal("a", outdated(config$plan, envir = config$envir,
+                             verbose = FALSE))
+
+  # Target "a" should react.
+  testrun(config)
+  expect_equal(character(0), outdated(config$plan, envir = config$envir,
+                                      verbose = FALSE))
+  expect_equal(readd(a), 9:18)
+
+  # Change a vectorized function and see target "a" react.
+  eval(parse(text = "f <- Vectorize(function(x){g(x) + 3}, \"x\")"),
+       envir = e)
+  testrun(config)
+  expect_equal(justbuilt(config), "a")
+  expect_equal(readd(a), 12:21)
 })

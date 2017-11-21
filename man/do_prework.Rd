@@ -12,9 +12,24 @@ do_prework(config, verbose_packages)
 \item{verbose_packages}{logical, whether to print
 package startup messages}
 }
+\value{
+Inivisibly returns \code{NULL}.
+}
 \description{
 Run the \code{prework} of a \code{\link{make}()}.
 For internal use only.
 the only reason this function is exported
 is to set up PSOCK clusters efficiently.
+}
+\examples{
+\dontrun{
+load_basic_example() # Load drake's canonical example.
+# Create a master internal configuration list with prework.
+con <- drake_config(my_plan, prework = c("library(knitr)", "x <- 1"))
+# Do the prework. Usually done at the beginning of `make()`,
+# and for distributed computing backends like "future_lapply",
+# right before each target is built.
+do_prework(config = con, verbose_packages = TRUE)
+identical(x, 1) # Should be TRUE.
+}
 }

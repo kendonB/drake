@@ -5,7 +5,7 @@
 \title{Function \code{read_plan}}
 \usage{
 read_plan(path = getwd(), search = TRUE, cache = drake::get_cache(path =
-  path, search = search))
+  path, search = search, verbose = verbose), verbose = TRUE)
 }
 \arguments{
 \item{path}{Root directory of the drake project,
@@ -19,9 +19,11 @@ current working directory only.}
 \item{cache}{optional drake cache. See code{\link{new_cache}()}.
 If \code{cache} is supplied,
 the \code{path} and \code{search} arguments are ignored.}
+
+\item{verbose}{whether to print console messages}
 }
 \value{
-a workflow plan data frame
+A workflow plan data frame.
 }
 \description{
 Read the workflow plan
@@ -29,9 +31,9 @@ from your last attempted call to \code{\link{make}()}.
 }
 \examples{
 \dontrun{
-load_basic_example()
-make(my_plan)
-read_plan()
+load_basic_example() # Load the canonical example.
+make(my_plan) # Run the project, build the targets.
+read_plan() # Retrieve the workflow plan data frame from the cache.
 }
 }
 \seealso{

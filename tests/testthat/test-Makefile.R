@@ -1,34 +1,34 @@
 drake_context("Makefile")
 
 test_with_dir("recipe commands", {
-  expect_output(Makefile_recipe())
-  expect_output(Makefile_recipe(recipe_command = "R -e 'R_RECIPE' -q"))
+  expect_message(Makefile_recipe())
+  expect_message(Makefile_recipe(recipe_command = "R -e 'R_RECIPE' -q"))
   my_plan <- workplan(y = 1)
   expect_true(is.character(default_recipe_command()))
   expect_true(is.character(r_recipe_wildcard()))
-  con1 <- make(my_plan, command = default_Makefile_command(),
+  con1 <- drake_config(my_plan, command = default_Makefile_command(),
     parallelism = "Makefile", recipe_command = "some_command",
-    verbose = FALSE, imports_only = TRUE
+    verbose = FALSE
   )
   expect_equal(con1$recipe_command, "some_command")
   expect_true(con1$recipe_command != default_recipe_command())
-  con2 <- config(plan = my_plan, parallelism = "Makefile",
+  con2 <- drake_config(plan = my_plan, parallelism = "Makefile",
     recipe_command = "my_command", verbose = FALSE)
   expect_equal(con2$recipe_command, "my_command")
   expect_true(con2$recipe_command != default_recipe_command())
 })
 
-test_with_dir("no Makefile if imports_only is TRUE", {
+test_with_dir("no Makefile for make_imports()", {
   expect_equal(cached(), character(0))
   x <- workplan(a = ls())
   expect_false(file.exists("Makefile"))
-  make(
+  con <- drake_config(
     x,
     parallelism = "Makefile",
-    imports_only = TRUE,
     verbose = FALSE
   )
-  expect_true(cached("ls"))
+  make_imports(con)
+  expect_true(cached("ls", verbose = FALSE))
   expect_false(file.exists("Makefile"))
 })
 
@@ -36,6 +36,7 @@ test_with_dir("prepend arg works", {
   config <- dbug()
   config$verbose <- FALSE
   config$prepend <- "# add"
+  store_drake_config(config = config)
   run_Makefile(config, run = FALSE)
   lines <- readLines("Makefile")
   expect_true(grepl("# add", lines[1]))
@@ -47,30 +48,23 @@ test_with_dir("files inside directories can be timestamped", {
       `'t1/t2'` = "dir.create(\"t1\"); saveRDS(1, file.path(\"t1\", \"t2\"))"
     )
   )
-  plan$target[1] <- file <- eply::quotes(file.path("t1",
+  plan$target[1] <- file <- drake::drake_quotes(file.path("t1",
     "t2"), single = TRUE)
-  config <- build_config(plan = plan, targets = plan$target[1],
-    parallelism = "parLapply", verbose = FALSE, packages = character(0),
-    prework = character(0), prepend = character(0), command = character(0),
-    args = character(0), recipe_command = default_recipe_command(),
-    envir = new.env(), jobs = 1,
-    cache = NULL, clear_progress = FALSE,
-    timeout = Inf, cpu = Inf, elapsed = Inf,
-    hook = function(code){
-      force(code)
-    },
-    retries = 0, imports_only = FALSE)
+  config <- drake_config(plan = plan, targets = plan$target[1],
+    parallelism = "parLapply", verbose = FALSE,
+    envir = new.env(), cache = NULL)
   path <- cache_path(config$cache)
+  store_drake_config(config = config)
   run_Makefile(config, run = FALSE)
   expect_silent(mk(config$plan$target[1], cache_path = path))
   expect_true(file.exists("t1"))
-  expect_true(file.exists(eply::unquote(file)))
+  expect_true(file.exists(drake::drake_unquote(file)))
   unlink("t1", recursive = TRUE, force = TRUE)
   expect_false(file.exists("t1"))
 
   expect_silent(make(config$plan, verbose = FALSE))
   expect_true(file.exists("t1"))
-  expect_true(file.exists(eply::unquote(file)))
+  expect_true(file.exists(drake::drake_unquote(file)))
   unlink("t1", recursive = TRUE, force = TRUE)
   expect_false(file.exists("t1"))
 })
@@ -81,12 +75,19 @@ test_with_dir("basic Makefile stuff works", {
     verbose = FALSE)
   config$verbose <- FALSE
   cache_path <- cache_path(config$cache)
+  initialize_session(config = config)
+  increment_attempt_flag(
+    targets = outdated(config = config), config = config)
+  config$recipe_command <- "Rscript -e"
+  store_drake_config(config = config)
   run_Makefile(config, run = FALSE, debug = TRUE)
   using_global <- identical(config$envir, globalenv())
   if (using_global) {
     expect_true(file.exists(globalenv_file(cache_path)))
   }
   expect_true(file.exists("Makefile"))
+  lines <- paste(readLines("Makefile"), collapse = "\n")
+  expect_true(grepl("Rscript -e 'drake::mk(", lines, fixed = TRUE))
   dir <- time_stamp_dir(cache_path)
   stamps <- unname(sort(list.files(dir, full.names = FALSE)))
   stamps2 <- unname(sort(
@@ -103,15 +104,16 @@ test_with_dir("basic Makefile stuff works", {
   expect_equal(stamps, stamps2)
 
   targ <- "'intermediatefile.rds'"
-  expect_false(file.exists(eply::unquote(targ)))
+  expect_false(file.exists(drake::drake_unquote(targ)))
   config$cache$del(key = targ, namespace = "progress")
   mk(targ, cache_path = cache_path)
   expect_equal(unname(progress(list = targ)), "finished")
-  expect_true(file.exists(eply::unquote(targ)))
+  expect_true(file.exists(drake::drake_unquote(targ)))
   config$cache$del(key = targ, namespace = "progress")
   mk(targ, cache_path = cache_path) # Verify behavior when target is current
   expect_equal(unname(progress(list = targ)), "not built or imported")
 
+  store_drake_config(config = config)
   run_Makefile(config, run = FALSE)
   expect_false(file.exists(globalenv_file(cache_path)))
 })
@@ -124,6 +126,7 @@ test_with_dir("Makefile stuff in globalenv()", {
     envir = globalenv(),
     verbose = FALSE
   )
+  store_drake_config(drake_TESTGLOBAL_config)
   run_Makefile(drake_TESTGLOBAL_config, run = FALSE, debug = TRUE)
   clean(list = targ)
   drake_TESTGLOBAL_config$cache$del(key = targ, namespace = "progress")
@@ -159,10 +162,14 @@ test_with_dir("packages are loaded in prework", {
   options(test_drake_option_12345 = "unset")
   expect_equal(getOption("test_drake_option_12345"), "unset")
   config <- dbug()
-  if (R.utils::isPackageLoaded("abind"))
-  detach("package:abind")
-  if (R.utils::isPackageLoaded("MASS"))
-  detach("package:MASS")
+  if (R.utils::isPackageLoaded("abind")){
+    # Suppress goodpractice::gp(): legitimate need for detach(). # nolint
+    eval(parse(text = "detach('package:abind', unload = TRUE)"))
+  }
+  if (R.utils::isPackageLoaded("MASS")){
+    # Suppress goodpractice::gp(): legitimate need for detach(). # nolint
+    eval(parse(text = "detach('package:MASS', unload = TRUE)"))
+  }
   expect_error(abind(1))
   expect_error(deparse(body(lda)))
 
@@ -186,10 +193,14 @@ test_with_dir("packages are loaded in prework", {
   # load packages the usual way
   options(test_drake_option_12345 = "unset")
   expect_equal(getOption("test_drake_option_12345"), "unset")
-  if (R.utils::isPackageLoaded("abind"))
-  detach("package:abind")
-  if (R.utils::isPackageLoaded("MASS"))
-  detach("package:MASS")
+  if (R.utils::isPackageLoaded("abind")){
+    # Suppress goodpractice::gp(): legitimate need for detach()
+    eval(parse(text = "detach('package:abind', unload = TRUE)"))
+  }
+  if (R.utils::isPackageLoaded("MASS")){
+    # Suppress goodpractice::gp(): legitimate need for detach()
+    eval(parse(text = "detach('package:MASS', unload = TRUE)"))
+  }
   expect_error(abind(1))
   expect_error(deparse(body(lda)))
   library(abind)

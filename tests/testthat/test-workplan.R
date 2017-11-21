@@ -42,7 +42,7 @@ test_with_dir("plan set 3", {
     list = c(c = "d", d = "readRDS('e')"),
     strings_in_dots = "literals", file_targets = TRUE)
   y <- data.frame(
-    target = eply::quotes(letters[1:4], single = TRUE),
+    target = drake::drake_quotes(letters[1:4], single = TRUE),
     command = c("c", "\"c\"", "d", "readRDS('e')"),
     stringsAsFactors = F)
   expect_equal(x, y)
@@ -55,23 +55,19 @@ test_with_dir("plan set 4", {
     list = c(c = "d", d = "readRDS('e')"),
     strings_in_dots = "filenames", file_targets = TRUE)
   y <- data.frame(
-    target = eply::quotes(letters[1:4], single = TRUE),
+    target = drake::drake_quotes(letters[1:4], single = TRUE),
     command = c("c", "'c'", "d", "readRDS('e')"), stringsAsFactors = F)
   expect_equal(x, y)
-  expect_warning(check(x))
-
+  expect_warning(check_plan(x, verbose = FALSE))
 })
 
 test_with_dir("workplan() trims outer whitespace in target names", {
   x <- workplan(list = c(` a` = 1, `b \t\n` = 2))
-  y <- x
-  y$output <- y$target
-  y$target <- NULL
-  z <- workplan(a = 1, b = 2)
-  expect_equal(x$target, y$output, z$target)
+  y <- workplan(a = 1, b = 2)
+  expect_equal(x$target, y$target)
 })
 
-test_with_dir("make() and check() trim outer whitespace in target names", {
+test_with_dir("make() and check_plan() trim outer whitespace in target names", {
   x <- data.frame(target = c("a\n", "  b", "c ", "\t  d   "),
     command = 1)
   expect_silent(make(x, verbose = FALSE))
@@ -84,7 +80,7 @@ test_with_dir("make() and check() trim outer whitespace in target names", {
     "nobody_home")))
 
   x <- data.frame(target = c("a", " a"), command = 1)
-  expect_error(check(x))
+  expect_error(check_plan(x, verbose = FALSE))
 })
 
 test_with_dir("make() plays nicely with tibbles", {
@@ -92,17 +88,17 @@ test_with_dir("make() plays nicely with tibbles", {
     skip("Package tibble not installed.")
   }
   x <- tibble::tribble(~target, ~command, "nothing", 1)
-  expect_silent(check(x))
+  expect_silent(check_plan(x, verbose = FALSE))
   expect_silent(make(x, verbose = FALSE))
 })
 
-test_with_dir("check() finds bad symbols", {
+test_with_dir("check_plan() finds bad symbols", {
   x <- data.frame(
     target = c("gotcha", "b", "\"targs\"", "a'x'", "b'x'"),
     command = 1)
-  expect_warning(o <- check(x))
+  expect_warning(o <- check_plan(x, verbose = FALSE))
   x <- data.frame(
     target = c("gotcha", "b", "\"targs\""),
     command = 1)
-  expect_silent(o <- check(x))
+  expect_silent(o <- check_plan(x, verbose = FALSE))
 })

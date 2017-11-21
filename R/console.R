@@ -1,61 +1,129 @@
 console_length <- 80
 
 console <- function(imported, target, config) {
-  if (!config$verbose) {
-    return()
-  }
   if (is.na(imported)) {
-    message <- "missing"
+    console_missing(target = target, config = config)
   } else if (imported) {
-    message <- "import"
+    console_import(target = target, config = config)
   } else {
-    message <- "target"
+    console_target(target = target, config = config)
   }
-  paste(message, target) %>%
-    finish_console(message = message)
+}
+
+console_missing <- function(target, config){
+  pattern <- "missing"
+  text <- paste(pattern, target)
+  finish_console(text = text, pattern = pattern, verbose = config$verbose)
+}
+
+console_import <- function(target, config){
+  pattern <- "import"
+  text <- paste(pattern, target)
+  finish_console(text = text, pattern = pattern, verbose = config$verbose)
+}
+
+console_target <- function(target, config){
+  pattern <- "target"
+  text <- paste("target", target)
+  trigger <- get_trigger(target = target, config = config)
+  if (trigger != "any"){
+    trigger <- get_trigger(target = target, config = config)
+    trigger_text <- color(x = "trigger", color = color_of("trigger"))
+    text <- paste0(text, ": ", trigger_text, " \"", trigger, "\"")
+  }
+  finish_console(text = text, pattern = pattern, verbose = config$verbose)
+}
+
+console_cache <- function(path, verbose){
+  if (!length(path)){
+    path <- default_cache_path()
+  }
+  paste("cache", path) %>%
+    finish_console(pattern = "cache", verbose = verbose)
 }
 
 console_many_targets <- function(
-  targets, message, config, color = color_of(message)
+  targets, pattern, config, color = color_of(pattern), type = "item"
 ){
-  if (!config$verbose) {
-    return(invisible())
-  }
   n <- length(targets)
   if (n < 1){
     return(invisible())
   }
   paste0(
-    message,
-    " ", n, " item",
+    pattern,
+    " ", n, " ", type,
     ifelse(n == 1, "", "s"),
     ": ",
     paste(targets, collapse = ", ")
   ) %>%
-    finish_console(message = message)
+    finish_console(pattern = pattern, verbose = config$verbose)
+}
+
+console_parLapply <- function(config){ # nolint
+  text <- paste("load parallel socket cluster with", config$jobs, "workers")
+  finish_console(text = text, pattern = "load",
+    verbose = config$verbose)
 }
 
 console_retry <- function(target, retries, config){
-  if (config$verbose & retries <= config$retries){
+  if (retries <= config$retries){
     text <- paste0("retry ", target, ": ", retries, " of ", config$retries)
-    finish_console(text = text, message = "retry")
+    finish_console(text = text, pattern = "retry", verbose = config$verbose)
   }
 }
 
 console_up_to_date <- function(config){
-  if (config$imports_only){
+  if (!config$verbose){
     return(invisible())
   }
-  if (config$verbose && !length(config$attempted_targets)){
-    color("All targets are already up to date.\n", colors["target"]) %>%
-      cat
+  any_attempted <- get_attempt_flag(config = config)
+  default_triggers <- using_default_triggers(config)
+  if (!any_attempted && default_triggers && !config$skip_imports){
+    console_all_up_to_date()
+    return(invisible())
+  }
+  if (config$skip_imports){
+    console_skipped_imports()
+  }
+  if (!default_triggers){
+    console_nondefault_triggers()
   }
 }
 
-finish_console <- function(text, message){
+console_all_up_to_date <- function(){
+  color("All targets are already up to date.", colors["target"]) %>%
+      message
+}
+
+console_skipped_imports <- function(){
+  color(
+    paste(
+      "Skipped the imports.",
+      "If some imports are not already cached, targets could be out of date."
+    ),
+    colors["trigger"]
+  ) %>%
+    message
+}
+
+console_nondefault_triggers <- function(){
+  color(
+    paste(
+      "Used non-default triggers.",
+      "Some targets may be not be up to date."
+    ),
+    colors["trigger"]
+  ) %>%
+    message
+}
+
+finish_console <- function(text, pattern, verbose){
+  if (!verbose){
+    return(invisible())
+  }
   crop_text(x = text, length = console_length) %>%
-    color_grep(pattern = message, color = color_of(message)) %>%
-    cat("\n", sep = "")
+    color_grep(pattern = pattern, color = color_of(pattern)) %>%
+    message(sep = "")
 }
 
 crop_text <- Vectorize(function(x, length = 50) {

@@ -10,9 +10,23 @@ cache_path(cache = NULL)
 \item{cache}{the cache whose file path
 you want to know}
 }
+\value{
+File path where the cache is stored.
+}
 \description{
 Returns the file path
 where the cache is stored. Currently
 only works with \code{storr} file system
 caches.
+}
+\examples{
+\dontrun{
+# Get/create a new drake/storr cache.
+cache <- recover_cache()
+# Show the file path of the cache.
+cache_path(cache = cache)
+# In-memory caches do not have file paths.
+mem <- new_cache(type = "storr_environment") # or just storr_environment()
+cache_path(cache = mem)
+}
 }

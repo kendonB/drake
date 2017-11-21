@@ -4,7 +4,7 @@
 \alias{get_cache}
 \title{Function get_cache}
 \usage{
-get_cache(path = getwd(), search = TRUE)
+get_cache(path = getwd(), search = TRUE, verbose = TRUE, force = FALSE)
 }
 \arguments{
 \item{path}{file path to the folder containing the cache.
@@ -16,17 +16,28 @@ the \code{\link{this_cache}()} function.}
 
 \item{search}{logical, whether to search back in the file system
 for the cache.}
+
+\item{verbose}{logical, whether to print the location of the cache}
+
+\item{force}{logical, whether to load the cache
+despite any back compatibility issues with the
+running version of drake.}
+}
+\value{
+A drake/storr cache, if available. \code{NULL} otherwise.
 }
 \description{
 Search for and return a drake file system cache.
 }
 \examples{
 \dontrun{
-get_cache()
-load_basic_example()
-make(my_plan)
-x <- get_cache()
-x$list()
+# No cache is available.
+get_cache() # NULL
+load_basic_example() # Load drake's canonical example.
+make(my_plan) # Run the project, build the targets.
+x <- get_cache() # Now, there is a cache.
+# List the objects readable from the cache with readd().
+x$list() # Or x$list(namespace = x$default_namespace)
 }
 }
 \seealso{

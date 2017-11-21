@@ -5,7 +5,8 @@
 \title{Function \code{build_times}}
 \usage{
 build_times(path = getwd(), search = TRUE, digits = 3,
-  cache = get_cache(path = path, search = search), targets_only = FALSE)
+  cache = get_cache(path = path, search = search, verbose = verbose),
+  targets_only = FALSE, verbose = TRUE)
 }
 \arguments{
 \item{path}{Root directory of the drake project,
@@ -23,9 +24,11 @@ the \code{path} and \code{search} arguments are ignored.}
 
 \item{targets_only}{logical, whether to only return the
 build times of the targets (exclude the imports).}
+
+\item{verbose}{whether to print console messages}
 }
 \value{
-data.frame of times from \code{\link{system.time}}
+A data frame of times, each from \code{\link{system.time}()}.
 }
 \description{
 List all the build times.
@@ -34,9 +37,10 @@ spent loading and saving objects!
 }
 \examples{
 \dontrun{
-load_basic_example()
-make(my_plan)
-build_times()
+# Show the build times for the basic example.
+load_basic_example() # Load the example.
+make(my_plan) # Build all the targets.
+build_times() # Show how long it took to build each target.
 }
 }
 \seealso{

@@ -4,7 +4,8 @@
 \alias{load_basic_example}
 \title{Function \code{load_basic_example}}
 \usage{
-load_basic_example(envir = parent.frame(), to = getwd(), overwrite = TRUE)
+load_basic_example(envir = parent.frame(), report_file = "report.Rmd",
+  overwrite = FALSE, to = report_file)
 }
 \arguments{
 \item{envir}{The environment to load the example into.
@@ -12,11 +13,16 @@ Defaults to your workspace.
 For an insulated workspace,
 set \code{envir = new.env(parent = globalenv())}.}
 
-\item{to}{where to write the dynamic report source file
-\code{report.Rmd}}
+\item{report_file}{where to write the report file \code{report.Rmd}.}
 
 \item{overwrite}{logical, whether to overwrite an
 existing file \code{report.Rmd}}
+
+\item{to}{deprecated, where to write the dynamic report source file
+\code{report.Rmd}}
+}
+\value{
+The workflow plan data frame of the basic example.
 }
 \description{
 Loads the basic example into your workspace
@@ -24,18 +30,25 @@ Loads the basic example into your workspace
 Also writes/overwrites the file \code{report.Rmd}.
 For a thorough walkthrough of how to set up this example, see the
 quickstart vignette: \code{vignette('quickstart')}. Alternatively,
-call \code{\link{example_drake}('basic')} to generate an R script
+call \code{\link{drake_example}('basic')} to generate an R script
 that builds up this example step by step.
 }
 \examples{
 \dontrun{
+# Populate your workspace and write 'report.Rmd'.
 load_basic_example()
+# Check the dependencies of an imported function.
 deps(reg1)
+# Check the dependencies of commands in the workflow plan.
 deps(my_plan$command[1])
 deps(my_plan$command[4])
-plot_graph(my_plan)
+# Plot the interactive network visualization of the workflow.
+vis_drake_graph(my_plan)
+# Run the workflow to build all the targets in the plan.
 make(my_plan)
+# Remove the whole cache.
 clean(destroy = TRUE)
+# Clean up the imported file.
 unlink('report.Rmd')
 }
 }

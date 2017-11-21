@@ -6,11 +6,10 @@
 \usage{
 max_useful_jobs(plan = workplan(), from_scratch = FALSE,
   targets = drake::possible_targets(plan), envir = parent.frame(),
-  verbose = TRUE, hook = function(code) {     force(code) },
-  cache = drake::get_cache(), jobs = 1,
-  parallelism = drake::default_parallelism(), packages = (.packages()),
-  prework = character(0), config = NULL, imports = c("files", "all",
-  "none"))
+  verbose = TRUE, hook = default_hook, cache = drake::get_cache(verbose =
+  verbose), jobs = 1, parallelism = drake::default_parallelism(),
+  packages = rev(.packages()), prework = character(0), config = NULL,
+  imports = c("files", "all", "none"), make_imports = TRUE)
 }
 \arguments{
 \item{plan}{workflow plan data frame, same as for function
@@ -81,10 +80,16 @@ Possible values:
  \item{'none'}{: Ignore all the imports and just focus on the max number
    of useful jobs for parallelizing targets.}
 }}
+
+\item{make_imports}{logical, whether to import external files
+and objects from the user's workspace to determine
+which targets are up to date. If \code{FALSE}, the computation
+is faster, but all the relevant information is drawn from the cache
+and may be out of date.}
 }
 \value{
-a list of three data frames: one for nodes, one for edges,
-and one for the legend/key nodes.
+A numeric scalar, the maximum number of useful jobs for
+\code{\link{make}(..., jobs = ...)}.
 }
 \description{
 Get the maximum number of useful jobs in the next call
@@ -100,32 +105,46 @@ IMPORTANT: you must be in the root directory of your project.
 }
 \examples{
 \dontrun{
-load_basic_example()
-plot_graph(my_plan) # Look at the graph to make sense of the output.
+load_basic_example() # Load drake's canonical example.
+# Look at the graph. The work proceeds column by column
+# in parallelizable stages. The maximum number of useful jobs
+# is determined by the number and kind of targets/imports
+# in the columns.
+vis_drake_graph(my_plan)
+# Should be 8 because everythign is out of date.
 max_useful_jobs(my_plan) # 8
+# Take into account targets and imported files.
 max_useful_jobs(my_plan, imports = 'files') # 8
+# Include imported R objects too.
 max_useful_jobs(my_plan, imports = 'all') # 10
+# Exclude all imported objects.
 max_useful_jobs(my_plan, imports = 'none') # 8
-make(my_plan)
-plot_graph(my_plan)
+make(my_plan) # Run the project, build the targets.
+vis_drake_graph(my_plan) # Everything is up to date.
 # Ignore the targets already built.
 max_useful_jobs(my_plan) # 1
 max_useful_jobs(my_plan, imports = 'files') # 1
-max_useful_jobs(my_plan, imports = 'all') # 10
+# Imports are never really skipped in make().
+max_useful_jobs(my_plan, imports = 'all') # 9
 max_useful_jobs(my_plan, imports = 'none') # 0
 # Change a function so some targets are now out of date.
 reg2 = function(d){
   d$x3 = d$x^3
   lm(y ~ x3, data = d)
 }
-plot_graph(my_plan)
+vis_drake_graph(my_plan)
+# We have different numbers of max useful jobs.
+# By default, the output takes into account which
+# targets are out of date. To disable, consider
+# using the from_scratch argument.
 max_useful_jobs(my_plan) # 4
+max_useful_jobs(my_plan, from_scratch = TRUE) # 8
 max_useful_jobs(my_plan, imports = 'files') # 4
-max_useful_jobs(my_plan, imports = 'all') # 10
+max_useful_jobs(my_plan, imports = 'all') # 9
 max_useful_jobs(my_plan, imports = 'none') # 4
 }
 }
 \seealso{
-\code{\link{plot_graph}}, \code{\link{build_graph}},
+\code{\link{vis_drake_graph}}, \code{\link{build_drake_graph}},
 \code{\link{shell_file}}
 }

@@ -1,4 +1,4 @@
-#' @title Function \code{session}
+#' @title Function \code{drake_session}
 #' @description Load the \code{\link{sessionInfo}()}
 #' of the last call to \code{\link{make}()}.
 #' @seealso \code{\link{diagnose}}, \code{\link{built}}, \code{\link{imported}},
@@ -15,14 +15,16 @@
 #' @param search If \code{TRUE}, search parent directories
 #' to find the nearest drake cache. Otherwise, look in the
 #' current working directory only.
+#' @param verbose whether to print console messages
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' make(my_plan)
-#' session()
+#' load_basic_example() # Load drake's canonical example.
+#' make(my_plan) # Run the project, build the targets.
+#' drake_session() # Retrieve the cached sessionInfo() of the last make().
 #' }
-session <- function(path = getwd(), search = TRUE,
-  cache = drake::get_cache(path = path, search = search)
+drake_session <- function(path = getwd(), search = TRUE,
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
+  verbose = TRUE
 ){
   if (is.null(cache)) {
     stop("No drake::make() session detected.")
@@ -39,7 +41,7 @@ session <- function(path = getwd(), search = TRUE,
 #' \code{\link{built}}, \code{\link{imported}},
 #' \code{\link{readd}}, \code{\link{workplan}}, \code{\link{make}}
 #' @export
-#' @return A character vector of target names
+#' @return A character vector of target names.
 #' @param cache optional drake cache. See code{\link{new_cache}()}.
 #' If \code{cache} is supplied,
 #' the \code{path} and \code{search} arguments are ignored.
@@ -49,14 +51,17 @@ session <- function(path = getwd(), search = TRUE,
 #' @param search If \code{TRUE}, search parent directories
 #' to find the nearest drake cache. Otherwise, look in the
 #' current working directory only.
+#' @param verbose whether to print console messages
 #' @examples
 #' \dontrun{
-#' load_basic_example()
+#' load_basic_example() # Load the canonical example.
 #' make(my_plan) # Kill before targets finish.
+#' # If you interrupted make(), some targets will probably be listed:
 #' in_progress()
 #' }
 in_progress <- function(path = getwd(), search = TRUE,
-  cache = drake::get_cache(path = path, search = search)
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
+  verbose = TRUE
 ){
   prog <- progress(path = path, search = search, cache = cache)
   which(prog == "in progress") %>%
@@ -74,7 +79,7 @@ in_progress <- function(path = getwd(), search = TRUE,
 #' \code{\link{built}}, \code{\link{imported}},
 #' \code{\link{readd}}, \code{\link{workplan}}, \code{\link{make}}
 #' @export
-#' @return A character vector of target names
+#' @return A character vector of target names.
 #' @param cache optional drake cache. See code{\link{new_cache}()}.
 #' If \code{cache} is supplied,
 #' the \code{path} and \code{search} arguments are ignored.
@@ -84,18 +89,21 @@ in_progress <- function(path = getwd(), search = TRUE,
 #' @param search If \code{TRUE}, search parent directories
 #' to find the nearest drake cache. Otherwise, look in the
 #' current working directory only.
+#' @param verbose whether to print console messages
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' make(my_plan)
-#' failed() # nothing
+#' load_basic_example() # Load drake's canonical example.
+#' make(my_plan) # Run the project, build the targets.
+#' failed() # Should show that no targets failed.
+#' # Build a workflow plan doomed to fail:
 #' bad_plan <- workplan(x = function_doesnt_exist())
 #' make(bad_plan) # error
 #' failed() # "x"
-#' diagnose(x)
+#' diagnose(x) # Retrieve the cached error log of x.
 #' }
 failed <- function(path = getwd(), search = TRUE,
-  cache = drake::get_cache(path = path, search = search)
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
+  verbose = TRUE
 ){
   prog <- progress(path = path, search = search, cache = cache)
   which(prog == "failed") %>%
@@ -114,7 +122,8 @@ failed <- function(path = getwd(), search = TRUE,
 #' \code{\link{readd}}, \code{\link{workplan}}, \code{\link{make}}
 #' @export
 #'
-#' @return Statuses of targets
+#' @return The build progress of each target reached by
+#' the current \code{\link{make}()} so far.
 #'
 #' @param ... objects to load from the cache, as names (unquoted)
 #' or character strings (quoted). Similar to \code{...} in
@@ -143,14 +152,17 @@ failed <- function(path = getwd(), search = TRUE,
 #' to find the nearest drake cache. Otherwise, look in the
 #' current working directory only.
 #'
+#' @param verbose whether to print console messages
+#'
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' make(my_plan)
-#' progress()
-#' progress(small, large)
-#' progress(list = c("small", "large"))
-#' progress(no_imported_objects = TRUE)
+#' load_basic_example() # Load the canonical example.
+#' make(my_plan) # Run the project, build the targets.
+#' # Watch the changing progress() as make() is running.
+#' progress() # List all the targets reached so far.
+#' progress(small, large) # Just see the progress of some targets.
+#' progress(list = c("small", "large")) # Same as above.
+#' progress(no_imported_objects = TRUE) # Ignore imported R objects.
 #' }
 progress <- function(
   ...,
@@ -159,7 +171,8 @@ progress <- function(
   imported_files_only = logical(0),
   path = getwd(),
   search = TRUE,
-  cache = drake::get_cache(path = path, search = search)
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
+  verbose = TRUE
 ){
   # deprecate imported_files_only
   if (length(imported_files_only)){
@@ -188,10 +201,11 @@ progress <- function(
 list_progress <- function(no_imported_objects, cache){
   all_marked <- cache$list(namespace = "progress")
   all_progress <- get_progress(target = all_marked, cache = cache)
+  plan <- read_plan(cache = cache)
   abridged_marked <- Filter(
     all_marked,
     f = function(target){
-      is_built_or_imported_file(target = target, cache = cache)
+      is_built_or_imported_file(target = target, plan = plan)
     }
   )
   abridged_progress <- all_progress[abridged_marked]

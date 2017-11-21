@@ -6,9 +6,14 @@
 \usage{
 default_Makefile_command()
 }
+\value{
+A character scalar naming a Linux/Unix command
+to run a Makefile.
+}
 \description{
 Give the default \code{command}
-argument to \code{\link{make}()}
+argument to \code{\link{make}()}. Relevant for
+\code{"Makefile"} parallelism only.
 }
 \examples{
 default_Makefile_command()

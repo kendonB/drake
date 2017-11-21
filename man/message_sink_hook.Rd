@@ -9,17 +9,24 @@ message_sink_hook(code)
 \arguments{
 \item{code}{code to run to build the target.}
 }
+\value{
+A function that you can supply to the \code{hook} argument
+of \code{\link{make}()}.
+}
 \description{
 an example \code{hook} argument to
 \code{make()} that redirects error messages to files.
 }
 \examples{
 \dontrun{
+# Test out the message sink hook on its own.
 message_sink_hook({
   cat(1234)
   stop(5678)
 })
+# Create a new workflow plan.
 x <- workplan(loud = cat(1234), bad = stop(5678))
+# Run the project. All messages should be suppressed.
 make(x, hook = message_sink_hook)
 }
 }

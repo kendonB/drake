@@ -9,6 +9,7 @@
 #' \code{knitr::knit()}.
 #' That is, it must look something like \code{knit('your_report.Rmd')}
 #' in your workflow plan data frame.
+#' @return A character vector of the names of dependencies.
 #' @details Drake looks for dependencies in the document by
 #' analyzing evaluated code chunks for other targets/imports
 #' mentioned in \code{\link{loadd}()} and \code{\link{readd}()}.
@@ -16,17 +17,18 @@
 #' source text of the document.
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' knitr_deps("'report.Rmd'") # Files must be single-quoted
+#' load_basic_example() # Load the canonical example of drake.
+#' knitr_deps("'report.Rmd'") # Files must be single-quoted.
+#' # Find the dependencies of the compiled output target, 'report.md'.
 #' knitr_deps("report.Rmd")
-#' make(my_plan)
+#' make(my_plan) # Run the project.
 #' knitr_deps("'report.md'") # Work on the Rmd source, not the output.
 #' }
 knitr_deps <- function(target){
   if (!length(target)){
     return(character(0))
   }
-  file <- unquote(target)
+  file <- drake_unquote(target)
   if (!file.exists(file)){
     warning(
       "dynamic report '", file,
@@ -139,7 +141,7 @@ is_function_call <- function(
 ){
   package <- match.arg(package)
   what <- match.arg(what)
-  eply::unquote(deparse(expr[[1]])) %in%
+  drake::drake_unquote(deparse(expr[[1]])) %in%
     paste0(c("", paste0(package, c("::", ":::"))), what)
 }
 
@@ -150,9 +152,7 @@ found_loadd_readd <- function(x){
 get_specific_arg <- function(args, name){
   tryCatch(
     eval(args[[name]]),
-    error = function(e){
-      character(0)
-    }
+    error = error_character0
   )
 }
 

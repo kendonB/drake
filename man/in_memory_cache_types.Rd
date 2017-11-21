@@ -6,11 +6,15 @@
 \usage{
 in_memory_cache_types()
 }
+\value{
+Character vector naming the supported
+in-memory cache types.
+}
 \description{
 List the supported drake in-memory cache types.
 }
 \examples{
-cache_types()
+in_memory_cache_types()
 }
 \seealso{
 \code{\link{cache_types}},

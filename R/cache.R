@@ -1,11 +1,73 @@
+#' @title Function cache_namespaces
+#' @export
+#' @seealso \code{\link{make}}
+#' @return A character vector of \code{storr} namespaces used for drake.
+#' @description List the important \code{storr} cache namespaces
+#' that need to be inventoried periodically in a call to \code{\link{make}()}.
+#' Ordinary users do not need to worry about this function.
+#' It is just another window into \code{drake}'s internals.
+#' @param default name of the default \code{storr} namespace
+#' @examples
+#' cache_namespaces()
+cache_namespaces <- function(
+  default = storr::storr_environment()$default_namespace
+){
+  c(
+    cleaned_namespaces(default = default),
+    "build_times",
+    "config",
+    "errors",
+    "progress",
+    "session"
+  ) %>%
+    sort
+}
+
+#' @title Function cleaned_namespaces
+#' @description List the \code{storr} namespaces that are cleaned
+#' during a call to \code{\link{clean}()}. All these
+#' namespaces store target-level data, but not all
+#' target-level namespaces are cleaned during
+#' \code{\link{clean}()}.
+#' @export
+#' @seealso \code{\link{cache_namespaces}}, \code{\link{clean}}
+#' @return A character vector of \code{storr} namespaces
+#' that are cleaned during \code{\link{clean}()}.
+#' @param default Name of the default \code{storr} namespace.
+#' @examples
+#' cleaned_namespaces()
+cleaned_namespaces <- function(
+  default = storr::storr_environment()$default_namespace
+){
+  c(
+    default,
+    "commands",
+    "depends",
+    "kernels",
+    "mtimes"
+  ) %>%
+    sort
+}
+
 #' @title Function cache_path
 #' @export
 #' @description Returns the file path
 #' where the cache is stored. Currently
 #' only works with \code{storr} file system
 #' caches.
+#' @return File path where the cache is stored.
 #' @param cache the cache whose file path
 #' you want to know
+#' @examples
+#' \dontrun{
+#' # Get/create a new drake/storr cache.
+#' cache <- recover_cache()
+#' # Show the file path of the cache.
+#' cache_path(cache = cache)
+#' # In-memory caches do not have file paths.
+#' mem <- new_cache(type = "storr_environment") # or just storr_environment()
+#' cache_path(cache = mem)
+#' }
 cache_path <- function(cache = NULL){
   if (is.null(cache)){
     NULL
@@ -21,6 +83,7 @@ cache_path <- function(cache = NULL){
 #' @seealso \code{\link{this_cache}}, \code{\link{new_cache}},
 #' \code{\link{recover_cache}}, \code{\link{config}}
 #' @export
+#' @return A drake/storr cache, if available. \code{NULL} otherwise.
 #' @param path file path to the folder containing the cache.
 #' Yes, this is the parent directory containing the cache,
 #' not the cache itself, and it assumes the cache is in the
@@ -29,24 +92,32 @@ cache_path <- function(cache = NULL){
 #' the \code{\link{this_cache}()} function.
 #' @param search logical, whether to search back in the file system
 #' for the cache.
+#' @param verbose logical, whether to print the location of the cache
+#' @param force logical, whether to load the cache
+#' despite any back compatibility issues with the
+#' running version of drake.
 #' @examples
 #' \dontrun{
-#' get_cache()
-#' load_basic_example()
-#' make(my_plan)
-#' x <- get_cache()
-#' x$list()
+#' # No cache is available.
+#' get_cache() # NULL
+#' load_basic_example() # Load drake's canonical example.
+#' make(my_plan) # Run the project, build the targets.
+#' x <- get_cache() # Now, there is a cache.
+#' # List the objects readable from the cache with readd().
+#' x$list() # Or x$list(namespace = x$default_namespace)
 #' }
 get_cache <- function(
   path = getwd(),
-  search = TRUE
+  search = TRUE,
+  verbose = TRUE,
+  force = FALSE
 ){
   if (search){
     path <- find_cache(path = path)
   } else {
     path <- default_cache_path()
   }
-  this_cache(path = path)
+  this_cache(path = path, force = force, verbose = verbose)
 }
 
 #' @title Function this_cache
@@ -55,43 +126,55 @@ get_cache <- function(
 #' at the exact specified file path
 #' Do not use for in-memory caches such as
 #' \code{storr_environment()}.
+#' @return A drake/storr cache at the specified path, if it exists.
 #' @param path file path of the cache
+#' @param force logical, whether to load the cache
+#' despite any back compatibility issues with the
+#' running version of drake.
+#' @param verbose, whether to print the file path of the cache.
 #' @examples
 #' \dontrun{
-#' x <- this_cache() # Does not exist yet
-#' load_basic_example()
-#' make(my_plan)
-#' y <- this_cache()
-#' z <- this_cache(".drake") # same as above
-#' manual <- new_cache("manual_cache")
-#' manual2 <- get_cache("manual_cache") # same as above
+#' x <- this_cache() # The cache does not exist yet.
+#' load_basic_example() # Load drake's canonical example.
+#' make(my_plan) # Run the project, build the targets.
+#' y <- this_cache() # Now, there is a cache.
+#' z <- this_cache(".drake") # Same as above.
+#' manual <- new_cache("manual_cache") # Make a new cache.
+#' manual2 <- get_cache("manual_cache") # Get the new cache.
 #' }
 this_cache <- function(
-  path = drake::default_cache_path()
+  path = drake::default_cache_path(), force = FALSE, verbose = TRUE
 ){
   if (is.null(path) || !file.exists(path)){
     return(NULL)
   }
+  console_cache(path = path, verbose = verbose)
   type <- type_of_cache(path)
   if (is.null(type)) {
     type <- default_cache_type()
   }
   cache_fetcher <- paste0("get_", type, "_cache")
-  get(cache_fetcher, envir = getNamespace("drake"))(
+  cache <- get(cache_fetcher, envir = getNamespace("drake"))(
     path = path
   )
+  if (!force){
+    assert_compatible_cache(cache = cache)
+  }
+  cache
 }
 
 #' @title Function new_cache
 #' @description Make a new drake cache. Could be any
 #' type of cache in \code{\link{cache_types}()}.
 #' @export
+#' @return A newly created drake cache as a storr object.
 #' @seealso \code{\link{default_short_hash_algo}},
 #' \code{\link{default_long_hash_algo}},
 #' \code{\link{make}}, \code{\link{cache_types}},
 #' \code{\link{in_memory_cache_types}}
 #' @param path file path to the cache if the cache
 #' is a file system cache.
+#' @param verbose logical, whether to print out the path of the cache.
 #' @param type character scalar, type of the drake cache.
 #' Must be among the list of supported caches
 #' in \code{\link{cache_types}()}.
@@ -107,13 +190,14 @@ this_cache <- function(
 #' cache1 <- new_cache() # Creates a new hidden '.drake' folder.
 #' cache2 <- new_cache(path = "not_hidden", short_hash_algo = "md5")
 #' }
-#' e <- new.env()
-#' ls(e)
+#' # Create a storr_environment() cache from a custom environment.
+#' e <- new.env() # Create a new environment.
+#' ls(e) # Emtpy.
 #' y <- new_cache(type = "storr_environment", envir = e)
-#' ls(e)
-#' ls(e)
+#' ls(e) # Storr populates the environment for use in an in-memory cache.
 new_cache <- function(
   path = drake::default_cache_path(),
+  verbose = TRUE,
   type = drake::default_cache_type(),
   short_hash_algo = drake::default_short_hash_algo(),
   long_hash_algo = drake::default_long_hash_algo(),
@@ -139,6 +223,7 @@ new_cache <- function(
     clear_progress = FALSE,
     overwrite_hash_algos = FALSE
   )
+  console_cache(path = cache_path(cache), verbose = verbose)
   cache
 }
 
@@ -150,6 +235,8 @@ new_cache <- function(
 #' and create a new one otherwise.
 #' Do not use for in-memory caches such as
 #' \code{storr_environment()}.
+#' For internal use only.
+#' @return A drake/storr cache.
 #' @param path file path of the cache
 #' @param short_hash_algo short hash algorithm for the cache.
 #' See \code{\link{default_short_hash_algo}()} and
@@ -160,22 +247,29 @@ new_cache <- function(
 #' @param type character scalar, type of the drake cache.
 #' Must be among the list of supported caches
 #' in \code{\link{cache_types}()}.
+#' @param force logical, whether to load the cache
+#' despite any back compatibility issues with the
+#' running version of drake.
+#' @param verbose logical, whether to print the file path of the cache.
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' make(my_plan)
-#' x <- recover_cache(".drake")
+#' load_basic_example() # Load drake's canonical example.
+#' make(my_plan) # Run the project, build all the targets.
+#' x <- recover_cache(".drake") # Recover the project's storr cache.
 #' }
 recover_cache <- function(
   path = drake::default_cache_path(),
   type = drake::default_cache_type(),
   short_hash_algo = drake::default_short_hash_algo(),
-  long_hash_algo = drake::default_long_hash_algo()
+  long_hash_algo = drake::default_long_hash_algo(),
+  force = FALSE,
+  verbose = TRUE
 ){
-  cache <- this_cache(path = path)
+  cache <- this_cache(path = path, force = force, verbose = verbose)
   if (is.null(cache)){
     cache <- new_cache(
       path = path,
+      verbose = verbose,
       short_hash_algo = short_hash_algo,
       long_hash_algo = long_hash_algo,
       type = type
@@ -184,10 +278,10 @@ recover_cache <- function(
   cache
 }
 
-
 #' @title Function default_cache_path
 #' @export
-#' @description default drake cache path
+#' @description Return the default file path of the drake/storr cache.
+#' @return Default file path of the drake/storr cache.
 #' @examples
 #' default_cache_path()
 default_cache_path <- function(){
@@ -200,6 +294,7 @@ default_cache_path <- function(){
 #' \code{\link{default_long_hash_algo}}
 #' @description configure a cache for drake. This is
 #' to prepare the cache to be called from \code{\link{make}()}.
+#' @return A drake/storr cache.
 #'
 #' @param cache cache to configure
 #'
@@ -223,26 +318,32 @@ default_cache_path <- function(){
 #' @param overwrite_hash_algos logical, whether to try to overwrite
 #' the hash algorithms in the cache with any user-specified ones.
 #'
+#' @param verbose whether to print console messages
+#'
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' config <- make(my_plan)
+#' load_basic_example() # Load drake's canonical example into the workspace.
+#' config <- make(my_plan) # Run the project, build all the targets.
+#' # Locate the drake/storr cache of the project
+#' # inside the master internal configuration list.
 #' cache <- config$cache
-#' long_hash(cache)
+#' long_hash(cache) # Return the long hash algorithm used.
+#' # Change the long hash algorithm of the cache.
 #' cache <- configure_cache(
 #'   cache = cache,
 #'   long_hash_algo = "murmur32",
 #'   overwrite_hash_algos = TRUE
 #' )
-#' long_hash(cache) # long hash algorithm. See ?default_long_hash_algorithm.
-#' make(my_plan) # Changing the long hash puts targets out of date.
+#' long_hash(cache) # Show the new long hash algorithm.
+#' make(my_plan) # Changing the long hash puts the targets out of date.
 #' }
 configure_cache <- function(
-  cache = drake::get_cache(),
+  cache = drake::get_cache(verbose = verbose),
   short_hash_algo = drake::default_short_hash_algo(cache = cache),
   long_hash_algo = drake::default_long_hash_algo(cache = cache),
   clear_progress = FALSE,
-  overwrite_hash_algos = FALSE
+  overwrite_hash_algos = FALSE,
+  verbose = TRUE
 ){
   short_hash_algo <- match.arg(short_hash_algo,
     choices = available_hash_algos())
@@ -277,7 +378,7 @@ set_initial_drake_version <- function(cache){
   if ("initial_drake_version" %in% keys){
     return()
   } else if ("sessionInfo" %in% keys){
-    last_session <- session(cache = cache)
+    last_session <- drake_session(cache = cache)
   } else {
     last_session <- sessionInfo()
   }
@@ -291,4 +392,12 @@ set_initial_drake_version <- function(cache){
 
 drake_version <- function(session_info = sessionInfo()){ # nolint
   session_info$otherPkgs$drake$Version # nolint
+}
+
+safe_get <- function(key, namespace, config){
+  if (config$cache$exists(key = key, namespace = namespace)){
+    config$cache$get(key = key, namespace = namespace)
+  } else {
+    NA
+  }
 }

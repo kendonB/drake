@@ -1,5 +1,17 @@
 drake_context("testing")
 
+test_with_dir("test_with_dir() clears out files", {
+  for (i in 1:10){
+    expect_silent(
+      test_with_dir("test", {
+        expect_false(file.exists("x"))
+        file.create("x")
+        expect_true(file.exists("x"))
+      })
+    )
+  }
+})
+
 test_with_dir("set_testing_scenario", {
   original <- get_testing_scenario_name()
   original_opt <- getOption(test_option_name)
@@ -83,12 +95,15 @@ test_with_dir("test_scenarios()", {
   log <- gsub(" .*", "", log)
   expect_equal(sort(log), sort(testing_scenario_names()))
 
-  log <- capture.output(
+  log <- evaluate_promise(
     test_scenarios(
       unit_test_dir = subdir,
       skip_criterion = always_skip
-    )
+    ),
+    print = TRUE
   )
+  log <- c(log$output, log$messages)
+
   loggings <- grepl("logged scenario", log)
   expect_false(any(loggings))
   expect_true(any(grepl("skip", log)))

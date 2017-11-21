@@ -1,8 +1,8 @@
-#' @title Function config
+#' @title Function drake_config
 #' @description Compute the internal runtime parameter list of
 #' \code{\link{make}()}. This could save time if you are planning
 #' multiple function calls of functions like \code{\link{outdated}()}
-#' or \code{\link{plot_graph}()}. Drake needs to import and cache files
+#' or \code{\link{vis_drake_graph}()}. Drake needs to import and cache files
 #' and objects to compute the configuration list, which in turn
 #' supports user-side functions to help with visualization and parallelism.
 #' The result differs from
@@ -10,17 +10,9 @@
 #' in that the graph includes both the targets and the imports,
 #' not just the imports.
 #' @export
-#' @seealso \code{\link{workplan}}, \code{\link{make}}, \code{\link{plot_graph}}
-#' @examples
-#' \dontrun{
-#' load_basic_example()
-#' con <- config(my_plan)
-#' outdated(my_plan, config = con)
-#' missed(my_plan, config = con)
-#' max_useful_jobs(my_plan, config = con)
-#' plot_graph(my_plan, config = con)
-#' dataframes_graph(my_plan, config = con)
-#' }
+#' @return The master internal configuration list of a project.
+#' @seealso \code{\link{make_with_config}}, \code{\link{make}},
+#' \code{\link{workplan}}, \code{\link{vis_drake_graph}}
 #' @param plan same as for \code{\link{make}}
 #' @param targets same as for \code{\link{make}}
 #' @param envir same as for \code{\link{make}}
@@ -39,17 +31,51 @@
 #' @param cpu same as for \code{\link{make}}
 #' @param elapsed same as for \code{\link{make}}
 #' @param retries same as for \code{\link{make}}
-config <- function(
-  plan = workplan(), targets = drake::possible_targets(plan),
-  envir = parent.frame(), verbose = TRUE,
-  hook = function(code){
-    force(code)
-  },
-  cache = drake::get_cache(),
+#' @param force same as for \code{\link{make}}
+#' @param clear_progress logical, whether to clear
+#' the cached progress of the targets readable by
+#' @param graph igraph object representing the workflow plan network.
+#' Overrides \code{skip_imports}.
+#' @param trigger same as for \code{\link{make}}
+#' @param imports_only logical, whether to skip building the targets
+#' in \code{plan} and just import objects and files.
+#' @param skip_imports logical, whether to totally neglect to
+#' process the imports and jump straight to the targets. This can be useful
+#' if your imports are massive and you just want to test your project,
+#' but it is bad practice for reproducible data analysis.
+#' This argument is overridden if you supply your own \code{graph} argument.
+#' @param skip_safety_checks logical, whether to skip the safety checks
+#' on your workflow to save time. Use at your own peril.
+#' @examples
+#' \dontrun{
+#' load_basic_example() # Load drake's canonical example.
+#' # Construct the master internal configuration list.
+#' con <- drake_config(my_plan)
+#' # These functions are faster than otherwise
+#' # because they use the configuration list.
+#' outdated(config = con) # Which targets are out of date?
+#' missed(config = con) # Which imports are missing?
+#' # In make(..., jobs = n), it would be silly to set `n` higher than this:
+#' max_useful_jobs(config = con)
+#' # Show a visNetwork graph
+#' vis_drake_graph(config = con)
+#' # Get the underlying node/edge data frames of the graph.
+#' dataframes_graph(config = con)
+#' }
+drake_config <- function(
+  plan = workplan(),
+  targets = drake::possible_targets(plan),
+  envir = parent.frame(),
+  verbose = TRUE,
+  hook = default_hook,
+  cache = drake::get_cache(verbose = verbose, force = force),
   parallelism = drake::default_parallelism(),
-  jobs = 1, packages = (.packages()), prework = character(0),
-  prepend = character(0), command = drake::default_Makefile_command(),
-  args = drake::default_system2_args(
+  jobs = 1,
+  packages = rev(.packages()),
+  prework = character(0),
+  prepend = character(0),
+  command = drake::default_Makefile_command(),
+  args = drake::default_Makefile_args(
     jobs = jobs,
     verbose = verbose
   ),
@@ -57,43 +83,16 @@ config <- function(
   timeout = Inf,
   cpu = timeout,
   elapsed = timeout,
-  retries = 0
+  retries = 0,
+  force = FALSE,
+  clear_progress = FALSE,
+  graph = NULL,
+  trigger = "any",
+  imports_only = FALSE,
+  skip_imports = FALSE,
+  skip_safety_checks = FALSE
 ){
   force(envir)
-  config <- make(
-    imports_only = TRUE,
-    clear_progress = FALSE,
-    plan = plan, targets = targets,
-    envir = envir, verbose = verbose,
-    hook = hook, cache = cache,
-    parallelism = use_default_parallelism(parallelism),
-    jobs = jobs,
-    packages = packages, prework = prework,
-    prepend = prepend, command = command, args = args,
-    recipe_command = recipe_command,
-    timeout = timeout,
-    cpu = cpu,
-    elapsed = elapsed,
-    retries = retries
-  )
-  config$parallelism <- match.arg(
-    parallelism,
-    choices = parallelism_choices(distributed_only = FALSE)
-  )
-  config$graph <- build_graph(plan = plan, targets = targets,
-    envir = envir, verbose = verbose)
-  config
-}
-
-build_config <- function(
-  plan, targets, envir,
-  verbose, hook, cache,
-  parallelism, jobs,
-  packages, prework, prepend, command,
-  args, clear_progress, recipe_command,
-  imports_only,
-  timeout, cpu, elapsed, retries
-){
   seed <- get_valid_seed()
   plan <- sanitize_plan(plan)
   targets <- sanitize_targets(plan, targets)
@@ -101,10 +100,15 @@ build_config <- function(
     parallelism,
     choices = parallelism_choices(distributed_only = FALSE)
   )
-  prework <- add_packages_to_prework(packages = packages,
-    prework = prework)
+  prework <- add_packages_to_prework(
+    packages = packages,
+    prework = prework
+  )
   if (is.null(cache)) {
-    cache <- recover_cache()
+    cache <- recover_cache(force = force, verbose = verbose)
+  }
+  if (!force){
+    assert_compatible_cache(cache = cache)
   }
   # A storr_rds() cache should already have the right hash algorithms.
   cache <- configure_cache(
@@ -112,18 +116,24 @@ build_config <- function(
     clear_progress = clear_progress,
     overwrite_hash_algos = FALSE
   )
-  graph <- build_graph(plan = plan, targets = targets,
-    envir = envir, verbose = verbose
-  )
-  list(plan = plan, targets = targets, envir = envir, cache = cache,
+  trigger <- match.arg(arg = trigger, choices = triggers())
+  if (is.null(graph)){
+    graph <- build_drake_graph(plan = plan, targets = targets,
+      envir = envir, verbose = verbose, jobs = jobs)
+  } else {
+    graph <- prune_drake_graph(graph = graph, to = targets, jobs = jobs)
+  }
+  list(
+    plan = plan, targets = targets, envir = envir, cache = cache,
     parallelism = parallelism, jobs = jobs, verbose = verbose, hook = hook,
     prepend = prepend, prework = prework, command = command,
     args = args, recipe_command = recipe_command, graph = graph,
     short_hash_algo = cache$get("short_hash_algo", namespace = "config"),
     long_hash_algo = cache$get("long_hash_algo", namespace = "config"),
-    inventory = cache$list(), seed = seed, imports_only = imports_only,
-    inventory_filemtime = cache$list(namespace = "filemtime"),
-    timeout = timeout, cpu = cpu, elapsed = elapsed, retries = retries
+    seed = seed, trigger = trigger,
+    timeout = timeout, cpu = cpu, elapsed = elapsed, retries = retries,
+    imports_only = imports_only, skip_imports = skip_imports,
+    skip_safety_checks = skip_safety_checks
   )
 }
 
@@ -141,20 +151,27 @@ add_packages_to_prework <- function(packages, prework) {
 #' For internal use only.
 #' the only reason this function is exported
 #' is to set up PSOCK clusters efficiently.
+#' @return Inivisibly returns \code{NULL}.
 #' @param config internal configuration list
 #' @param verbose_packages logical, whether to print
 #' package startup messages
+#' @examples
+#' \dontrun{
+#' load_basic_example() # Load drake's canonical example.
+#' # Create a master internal configuration list with prework.
+#' con <- drake_config(my_plan, prework = c("library(knitr)", "x <- 1"))
+#' # Do the prework. Usually done at the beginning of `make()`,
+#' # and for distributed computing backends like "future_lapply",
+#' # right before each target is built.
+#' do_prework(config = con, verbose_packages = TRUE)
+#' identical(x, 1) # Should be TRUE.
+#' }
 do_prework <- function(config, verbose_packages) {
   wrapper <- ifelse(verbose_packages, invisible,
     base::suppressPackageStartupMessages)
   for (code in config$prework) wrapper(eval(parse(text = code),
     envir = config$envir))
-}
-
-inventory <- function(config) {
-  config$inventory <- config$cache$list()
-  config$inventory_filemtime <- config$cache$list(namespace = "filemtime")
-  config
+  invisible()
 }
 
 #' @title Function \code{possible_targets}
@@ -163,11 +180,13 @@ inventory <- function(config) {
 #' argument to \code{\link{make}()}.
 #' @seealso \code{\link{make}}
 #' @export
-#' @return character vector of possible targets
+#' @return Character vector of possible targets given the workflow plan.
 #' @param plan workflow plan data frame
 #' @examples
 #' \dontrun{
-#' load_basic_example()
+#' load_basic_example() # Load the canonical drake example.
+#' # List the possible targets you could choose for the
+#' # `targets` argument to make(). You may choose any subset.
 #' possible_targets(my_plan)
 #' }
 possible_targets <- function(plan = workplan()) {
@@ -175,8 +194,17 @@ possible_targets <- function(plan = workplan()) {
   c(as.character(plan$output), as.character(plan$target))
 }
 
-store_config <- function(config) {
+store_drake_config <- function(config) {
   save_these <- setdiff(names(config), "envir")  # envir could get massive.
-  lapply(save_these, function(item) config$cache$set(key = item,
-    value = config[[item]], namespace = "config"))
+  lightly_parallelize(
+    save_these,
+    function(item){
+      config$cache$set(
+        key = item,
+        value = config[[item]],
+        namespace = "config"
+      )
+    },
+    jobs = config$jobs
+  )
 }

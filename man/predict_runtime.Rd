@@ -6,10 +6,10 @@
 \usage{
 predict_runtime(plan = workplan(), from_scratch = FALSE,
   targets_only = FALSE, targets = drake::possible_targets(plan),
-  envir = parent.frame(), verbose = TRUE, hook = function(code) {    
-  force(code) }, cache = drake::get_cache(path = path, search = search),
+  envir = parent.frame(), verbose = TRUE, hook = default_hook,
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
   parallelism = drake::default_parallelism(), jobs = 1,
-  future_jobs = jobs, packages = (.packages()), prework = character(0),
+  future_jobs = jobs, packages = rev(.packages()), prework = character(0),
   config = NULL, digits = 3, path = getwd(), search = TRUE)
 }
 \arguments{
@@ -70,6 +70,10 @@ not the cache itself.}
 \item{search}{logical, whether to search back in the file system
 for the cache.}
 }
+\value{
+A \code{lubridate} \code{Duration} object
+with the predicted runtime of the next \code{\link{make}()}.
+}
 \description{
 Predict the elapsed runtime of the next call to `make()`.
 This function simply sums the elapsed build times.
@@ -83,11 +87,14 @@ will warn you and tell you which targets have missing times.
 }
 \examples{
 \dontrun{
-load_basic_example()
-make(my_plan)
-predict_runtime(my_plan, digits = 4) # everything is up to date
+load_basic_example() # Load drake's canonical example.
+make(my_plan) # Run the project, build the targets.
+predict_runtime(my_plan, digits = 4) # Everything is up to date.
 predict_runtime(my_plan, digits = 4, from_scratch = TRUE) # 1 job
+# Assumes you clean() out your project and start from scratch with 2 jobs.
 predict_runtime(my_plan, future_jobs = 2, digits = 4, from_scratch = TRUE)
+# Just predict how long it will take to build
+# the targets 'small' and 'large'.
 predict_runtime(
   my_plan,
   targets = c("small", "large"),

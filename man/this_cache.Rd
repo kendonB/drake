@@ -4,10 +4,20 @@
 \alias{this_cache}
 \title{Function this_cache}
 \usage{
-this_cache(path = drake::default_cache_path())
+this_cache(path = drake::default_cache_path(), force = FALSE,
+  verbose = TRUE)
 }
 \arguments{
 \item{path}{file path of the cache}
+
+\item{force}{logical, whether to load the cache
+despite any back compatibility issues with the
+running version of drake.}
+
+\item{verbose, }{whether to print the file path of the cache.}
+}
+\value{
+A drake/storr cache at the specified path, if it exists.
 }
 \description{
 Get a known drake file system cache
@@ -17,12 +27,12 @@ Do not use for in-memory caches such as
 }
 \examples{
 \dontrun{
-x <- this_cache() # Does not exist yet
-load_basic_example()
-make(my_plan)
-y <- this_cache()
-z <- this_cache(".drake") # same as above
-manual <- new_cache("manual_cache")
-manual2 <- get_cache("manual_cache") # same as above
+x <- this_cache() # The cache does not exist yet.
+load_basic_example() # Load drake's canonical example.
+make(my_plan) # Run the project, build the targets.
+y <- this_cache() # Now, there is a cache.
+z <- this_cache(".drake") # Same as above.
+manual <- new_cache("manual_cache") # Make a new cache.
+manual2 <- get_cache("manual_cache") # Get the new cache.
 }
 }

@@ -1,6 +1,6 @@
 Package: drake
 Title: Data Frames in R for Make
-Version: 4.3.1.9000
+Version: 4.4.1.9000
 Authors@R: c(
   person(
     family = "Landau",
@@ -28,9 +28,9 @@ Depends:
 Imports:
   codetools,
   crayon,
-  eply,
   evaluate,
   digest,
+  formatR,
   future,
   grDevices,
   igraph,
@@ -49,13 +49,13 @@ Imports:
   utils,
   visNetwork,
   withr
-Suggests:
-  abind,
-  future.batchtools,
-  MASS,
-  methods,
-  rmarkdown,
-  tibble
+Suggests: 
+    abind,
+    future.batchtools,
+    MASS,
+    methods,
+    rmarkdown,
+    tibble
 VignetteBuilder: knitr
 URL: https://github.com/wlandau-lilly/drake
 BugReports: https://github.com/wlandau-lilly/drake/issues

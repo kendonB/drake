@@ -9,17 +9,25 @@ output_sink_hook(code)
 \arguments{
 \item{code}{code to run to build the target.}
 }
+\value{
+A function that you can supply to the \code{hook} argument
+of \code{\link{make}()}.
+}
 \description{
 an example \code{hook} argument to
 \code{make()} that redirects output messages to files.
 }
 \examples{
 \dontrun{
+# Test out the output sink hook on its own.
 output_sink_hook({
   cat(1234)
   stop(5678)
 })
+# Create a new workflow plan.
 x <- workplan(loud = cat(1234), bad = stop(5678))
+# Run the project. Standard output (via cat() and print())
+# should be suppressed, but messages should persist.
 make(x, hook = output_sink_hook)
 }
 }

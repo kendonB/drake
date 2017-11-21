@@ -1,3 +1,52 @@
+#' @title Function \code{batchtools_drake_tmpl_file}
+#' @description Write the batchtools template file
+#' from one of the examples. If there are multiple files,
+#' only the first one (alphabetically) is written.
+#' @export
+#' @seealso \code{\link{drake_examples}}, \code{\link{drake_example}},
+#' \code{\link{shell_file}}
+#' @return \code{NULL} is returned,
+#' but a batchtools template file is written.
+#' @param example Name of the drake example
+#' from which to take the template file.
+#' Must be listed in \code{\link{drake_examples}()}.
+#' @param to Character vector, where to write the file.
+#' @param overwrite Logical, whether to overwrite an existing file of the
+#' same name.
+#' @examples
+#' \dontrun{
+#' load_basic_example() # Load the canonical example.
+#' # List the drake examples. Only some have template files.
+#' drake_examples()
+#' # Write the batchtools template file from the SLURM example.
+#' batchtools_drake_tmpl_file("slurm") # Writes batchtools.slurm.tmpl.
+#' # Find batchtools.slurm.tmpl with the rest of the example's files.
+#' drake_example("slurm") # Writes a new 'slurm' folder with more files.
+#' # Run the basic example with a
+#' # SLURM-powered parallel backend. Requires SLURM.
+#' library(future.batchtools)
+#' future::plan(batchtools_slurm(template = "batchtools.slurm.tmpl"))
+#' make(my_plan, parallelism = "future_lapply")
+#' }
+batchtools_drake_tmpl_file <- function(
+  example = drake::drake_examples(),
+  to = getwd(),
+  overwrite = FALSE
+){
+  example <- match.arg(example)
+  dir <- system.file(file.path("examples", example), package = "drake",
+    mustWork = TRUE)
+  files <- list.files(dir)
+  template_files <- files[grepl("\\.tmpl$", files)]
+  if (!length(template_files)){
+    stop("No template files found for the ", example, " example.")
+  }
+  file <- file.path(dir, template_files[1])
+  file.copy(from = file, to = to,
+    overwrite = overwrite, recursive = TRUE)
+  invisible()
+}
+
 #' @title Function \code{parallelism_choices}
 #' @description List the types of supported parallel computing.
 #' @export
@@ -26,15 +75,19 @@
 #'  opens up a whole trove of parallel backends
 #'  powered by the \code{future} and \code{future.batchtools}
 #'  packages. First, set the parallel backend globally using
-#'  \code{\link{backend}()} (or equivalently, \code{future::plan()}).
+#'  \code{future::plan()}.
 #'  Then, apply the backend to your workplan
 #'  using \code{make(..., parallelism = "future_lapply", jobs = ...)}.
 #'  But be warned: the environment for each target needs to be set up
 #'  from scratch, so this backend type is higher overhead than either
 #'  \code{mclapply} or \code{parLapply}.
 #'  Also, the \code{jobs} argument only applies to the imports.
-#'  for the max number of jobs to use for building targets,
-#'  use options(mc.cores = jobs), or see \code{?future::future::.options}
+#'  To set the max number of jobs, set the \code{workers}
+#'  argument where it exists. For example, call
+#'  \code{future::plan(multisession(workers = 4))},
+#'  then call \code{\link{make}(your_plan, parallelism = "future_lapply")}.
+#'  You might also try options(mc.cores = jobs),
+#'  or see \code{?future::future::.options}
 #'  for environment variables that set the max number of jobs.
 #'  }
 #'
@@ -70,7 +123,9 @@
 #' \code{parLapply}
 #'
 #' @examples
+#' # See all the parallel computing options.
 #' parallelism_choices()
+#' # See just the distributed computing options.
 #' parallelism_choices(distributed_only = TRUE)
 parallelism_choices <- function(distributed_only = FALSE) {
   local <- c(
@@ -89,12 +144,13 @@ parallelism_choices <- function(distributed_only = FALSE) {
 }
 
 #' @title Function \code{default_parallelism}
-#' @description Default parallelism for \code{\link{make}()}:
+#' @description Show the default parallelism for \code{\link{make}()}
+#' on your system:
 #' \code{'parLapply'} for Windows machines and \code{'mclapply'}
 #' for other platforms.
 #' @export
 #' @seealso \code{\link{make}}, \code{\link{shell_file}}
-#' @return default parallelism option for the current platform
+#' @return The default parallelism option for your system.
 #' @examples
 #' default_parallelism()
 default_parallelism <- function() {
@@ -113,10 +169,10 @@ default_parallelism <- function() {
 #' IMPORTANT: you must be in the root directory of your project.
 #' @export
 #'
-#' @return a list of three data frames: one for nodes, one for edges,
-#' and one for the legend/key nodes.
+#' @return A numeric scalar, the maximum number of useful jobs for
+#' \code{\link{make}(..., jobs = ...)}.
 #'
-#' @seealso \code{\link{plot_graph}}, \code{\link{build_graph}},
+#' @seealso \code{\link{vis_drake_graph}}, \code{\link{build_drake_graph}},
 #' \code{\link{shell_file}}
 #'
 #' @param plan workflow plan data frame, same as for function
@@ -188,47 +244,66 @@ default_parallelism <- function() {
 #'    of useful jobs for parallelizing targets.}
 #' }
 #'
+#' @param make_imports logical, whether to import external files
+#' and objects from the user's workspace to determine
+#' which targets are up to date. If \code{FALSE}, the computation
+#' is faster, but all the relevant information is drawn from the cache
+#' and may be out of date.
+#'
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' plot_graph(my_plan) # Look at the graph to make sense of the output.
+#' load_basic_example() # Load drake's canonical example.
+#' # Look at the graph. The work proceeds column by column
+#' # in parallelizable stages. The maximum number of useful jobs
+#' # is determined by the number and kind of targets/imports
+#' # in the columns.
+#' vis_drake_graph(my_plan)
+#' # Should be 8 because everythign is out of date.
 #' max_useful_jobs(my_plan) # 8
+#' # Take into account targets and imported files.
 #' max_useful_jobs(my_plan, imports = 'files') # 8
+#' # Include imported R objects too.
 #' max_useful_jobs(my_plan, imports = 'all') # 10
+#' # Exclude all imported objects.
 #' max_useful_jobs(my_plan, imports = 'none') # 8
-#' make(my_plan)
-#' plot_graph(my_plan)
+#' make(my_plan) # Run the project, build the targets.
+#' vis_drake_graph(my_plan) # Everything is up to date.
 #' # Ignore the targets already built.
 #' max_useful_jobs(my_plan) # 1
 #' max_useful_jobs(my_plan, imports = 'files') # 1
-#' max_useful_jobs(my_plan, imports = 'all') # 10
+#' # Imports are never really skipped in make().
+#' max_useful_jobs(my_plan, imports = 'all') # 9
 #' max_useful_jobs(my_plan, imports = 'none') # 0
 #' # Change a function so some targets are now out of date.
 #' reg2 = function(d){
 #'   d$x3 = d$x^3
 #'   lm(y ~ x3, data = d)
 #' }
-#' plot_graph(my_plan)
+#' vis_drake_graph(my_plan)
+#' # We have different numbers of max useful jobs.
+#' # By default, the output takes into account which
+#' # targets are out of date. To disable, consider
+#' # using the from_scratch argument.
 #' max_useful_jobs(my_plan) # 4
+#' max_useful_jobs(my_plan, from_scratch = TRUE) # 8
 #' max_useful_jobs(my_plan, imports = 'files') # 4
-#' max_useful_jobs(my_plan, imports = 'all') # 10
+#' max_useful_jobs(my_plan, imports = 'all') # 9
 #' max_useful_jobs(my_plan, imports = 'none') # 4
 #' }
 max_useful_jobs <- function(
   plan = workplan(), from_scratch = FALSE,
   targets = drake::possible_targets(plan),
   envir = parent.frame(), verbose = TRUE,
-  hook = function(code){
-    force(code)
-  },
-  cache = drake::get_cache(),
+  hook = default_hook,
+  cache = drake::get_cache(verbose = verbose),
   jobs = 1, parallelism = drake::default_parallelism(),
-  packages = (.packages()), prework = character(0), config = NULL,
-  imports = c("files", "all", "none")
+  packages = rev(.packages()), prework = character(0), config = NULL,
+  imports = c("files", "all", "none"),
+  make_imports = TRUE
 ){
   force(envir)
   if (is.null(config)){
-    config <- config(
+    config <- drake_config(
       plan = plan,
       targets = targets,
       envir = envir,
@@ -241,16 +316,18 @@ max_useful_jobs <- function(
       prework = prework
     )
   }
-  config <- inventory(config)
   nodes <- dataframes_graph(plan = config$plan, config = config,
-    split_columns = FALSE)$nodes
+    split_columns = FALSE, make_imports = make_imports,
+    from_scratch = from_scratch)$nodes
   imports <- match.arg(imports)
   just_targets <- intersect(nodes$id, config$plan$target)
   just_files <- Filter(x = nodes$id, f = is_file)
   targets_and_files <- union(just_targets, just_files)
-  if (imports == "none")
-    nodes <- nodes[just_targets, ] else if (imports == "files")
+  if (imports == "none"){
+    nodes <- nodes[just_targets, ]
+  } else if (imports == "files"){
     nodes <- nodes[targets_and_files, ]
+  }
   if (!from_scratch){
     nodes <- nodes[nodes$status != "up to date", ]
   }
@@ -268,15 +345,29 @@ max_useful_jobs <- function(
 #' Use this option to run your project in parallel on a computing cluster
 #' or supercomputer.
 #' @seealso \code{\link{make}}, \code{\link{max_useful_jobs}},
-#' \code{\link{parallelism_choices}}
+#' \code{\link{parallelism_choices}}, \code{\link{batchtools_drake_tmpl_file}},
+#' \code{\link{drake_example}}, \code{\link{drake_examples}}
 #' @export
+#' @return The return value of the call to \code{file.copy()} that
+#' wrote the shell file.
 #' @param path file path of the shell file
 #' @param overwrite logical, whether to overwrite a possible
 #' destination file with the same name
+#' @examples
+#' \dontrun{
+#' # Write shell.sh to your working directory.
+#' # Read the parallelism vignette to learn how it is used
+#' # in Makefile parallelism.
+#' shell_file()
+#' }
 shell_file <- function(
-  path = file.path(getwd(), "shell.sh"),
+  path = "shell.sh",
   overwrite = FALSE
 ){
   from <- system.file("shell.sh", package = "drake", mustWork = TRUE)
-  invisible(file.copy(from = from, to = path, copy.mode = TRUE))
+  if (file.exists(path) & overwrite){
+    warning("Overwriting file ", path)
+  }
+  invisible(file.copy(from = from, to = path, copy.mode = TRUE,
+    overwrite = overwrite))
 }

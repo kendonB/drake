@@ -16,12 +16,13 @@
 #' arguments in \code{...}, so use the \code{strings_in_dots}
 #' argument to control the quoting in \code{...}.
 #' @export
-#' @return data frame of targets and command
+#' @return A data frame of targets and commands.
 #' @param ... same as for \code{drake::\link{workplan}()}
 #' @param list same as for \code{drake::\link{workplan}()}
 #' @param file_targets same as for \code{drake::\link{workplan}()}
 #' @param strings_in_dots same as for \code{drake::\link{workplan}()}
 #' @examples
+#' # Create example workflow plan data frames for make()
 #' workplan(small = simulate(5), large = simulate(50))
 #' workplan(list = c(x = "1 + 1", y = "sqrt(x)"))
 #' workplan(data = readRDS("my_data.rds"))
@@ -55,7 +56,7 @@ workplan <- function(
   )
   from_dots <- plan$target %in% names(commands_dots)
   if (file_targets){
-    plan$target <- eply::quotes(plan$target, single = T)
+    plan$target <- drake::drake_quotes(plan$target, single = TRUE)
   }
   if (strings_in_dots == "filenames"){
     plan$command[from_dots] <- gsub("\"", "'", plan$command[from_dots])
@@ -63,49 +64,32 @@ workplan <- function(
   sanitize_plan(plan)
 }
 
-#' @title Function \code{as_file}
+#' @title Function \code{as_drake_filename}
 #' @description Converts an ordinary character string
 #' into a filename understandable by drake. In other words,
-#' \code{as_file(x)} just wraps single quotes around \code{x}.
+#' \code{as_drake_filename(x)} just wraps single quotes around \code{x}.
 #' @export
-#' @return a single-quoted character string: i.e., a filename
+#' @return A single-quoted character string: i.e., a filename
 #' understandable by drake.
 #' @param x character string to be turned into a filename
 #' understandable by drake (i.e., a string with literal
 #' single quotes on both ends).
 #' @examples
-#' as_file("my_file.rds")
-as_file <- function(x){
-  eply::quotes(x, single = TRUE)
+#' # Wraps the string in single quotes.
+#' as_drake_filename("my_file.rds") # "'my_file.rds'"
+as_drake_filename <- function(x){
+  drake::drake_quotes(x, single = TRUE)
 }
 
 wide_deparse <- function(x){
   paste(deparse(x), collapse = "")
 }
 
-sanitize_plan <- function(plan){
-  for (field in c("code", "command", "output", "target")){
-    if (!is.null(plan[[field]])){
-      plan[[field]] <- str_trim(plan[[field]], side = "both")
-    }
+workplan_override <- function(target, field, config){
+  in_plan <- config$plan[[field]]
+  if (is.null(in_plan)){
+    return(config[[field]])
+  } else {
+    return(in_plan[config$plan$target == target])
   }
-  as.data.frame(plan, stringsAsFactors = FALSE) %>%
-    fix_deprecated_plan_names()
-}
-
-sanitize_targets <- function(plan, targets){
-  plan <- sanitize_plan(plan)
-  targets <- str_trim(targets, side = "both")
-  if (!any(targets %in% plan$target)){
-    stop("No valid targets requested.", call. = FALSE)
-  }
-  diffs <- setdiff(targets, plan$target)
-  if (length(diffs)){
-    warning(
-      "Ignoring requested targets not in the workflow plan:\n",
-      multiline_message(diffs),
-      call. = FALSE
-    )
-  }
-  intersect(targets, plan$target)
 }

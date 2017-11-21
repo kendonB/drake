@@ -11,30 +11,41 @@
 #' @export
 #' @param x Either a function or a string.
 #' Strings are commands from your workflow plan data frame.
-#' @return names of dependencies. Files wrapped in single quotes.
-#' The other names listed are functions or generic objects.
+#' @return A character vector, names of dependencies.
+#' Files wrapped in single quotes.
+#' The other names listed are functions or generic R objects.
 #' @examples
+#' # Your workflow likely depends on functions in your workspace.
 #' f <- function(x, y){
 #'   out <- x + y + g(x)
 #'   saveRDS(out, 'out.rds')
 #' }
+#' # Find the dependencies of f. These could be R objects/functions
+#' # in your workspace or packages. Any file names or target names
+#' # will be ignored.
 #' deps(f)
+#' # Define a workflow plan data frame that uses your function f().
 #' my_plan <- workplan(
 #'   x = 1 + some_object,
 #'   my_target = x + readRDS('tracked_input_file.rds'),
 #'   return_value = f(x, y, g(z + w))
 #' )
+#' # Get the dependencies of workflow plan commands.
+#' # Here, the dependencies could be R functions/objects from your workspace
+#' # or packages, imported files, or other targets in the workflow plan.
 #' deps(my_plan$command[1])
 #' deps(my_plan$command[2])
 #' deps(my_plan$command[3])
 #' \dontrun{
-#' load_basic_example() # Writes 'report.Rmd'.
-#' deps("'report.Rmd'") # dependencies of future knitted output 'report.md'
+#' load_basic_example() # Loads the basic example and writes 'report.Rmd'.
+#' # Dependencies of the knitr-generated targets like 'report.md'
+#' # include targets/imports referenced with `readd()` or `loadd()`.
+#' deps("'report.Rmd'")
 #' }
 deps <- function(x){
   if (is.function(x)){
     out <- function_dependencies(x)
-  } else if (is_file(x) & file.exists(file <- eply::unquote(x))){
+  } else if (is_file(x) & file.exists(file <- drake::drake_unquote(x))){
     out <- knitr_deps(x)
   } else if (is.character(x)){
     out <- command_dependencies(x)
@@ -42,6 +53,103 @@ deps <- function(x){
     stop("x must be a character scalar or function.")
   }
   clean_dependency_list(out)
+}
+
+#' @title Function dependency_profile
+#' @description Return the detailed dependency profile
+#' of the target. Useful for debugging.
+#' For up to date targets, like elements
+#' of the returned list should agree: for example,
+#' \code{cached_dependency_hash} and
+#' \code{current_dependency_hash}.
+#' @return A list of information that drake takes into account
+#' when examining the dependencies of the target.
+#' @export
+#' @seealso \code{\link{deps}}, \code{\link{make}},
+#' \code{\link{config}}
+#' @param target name of the target
+#' @param config configuration list output by
+#' \code{\link{config}} or \code{\link{make}}
+#' @examples
+#' \dontrun{
+#' load_basic_example() # Load drake's canonical exmaple.
+#' con <- make(my_plan) # Run the project, build the targets.
+#' # Get some example dependency profiles of targets.
+#' dependency_profile("small", config = con)
+#' dependency_profile("'report.md'", config = con)
+#' clean(large) # Clear out most of the information about the target 'large'.
+#' # The dependency hashes are still there.
+#' dependency_profile("large", config = con)
+#' # Should agree with `$hashes_of_dependencies`.
+#' con$cache$get_hash("simulate",
+#'   namespace = "kernels")
+#' }
+dependency_profile <- function(target, config){
+  config$plan$trigger <- NULL
+  cached_command <- safe_get(key = target, namespace = "commands",
+    config = config)
+  current_command <- get_command(target = target, config = config)
+
+  deps <- dependencies(target, config)
+  hashes_of_dependencies <- self_hash(target = deps, config = config)
+  current_dependency_hash <- digest::digest(hashes_of_dependencies,
+    algo = config$long_hash_algo)
+  cached_dependency_hash <- safe_get(key = target, namespace = "depends",
+    config = config)
+  names(hashes_of_dependencies) <- deps
+
+  cached_file_modification_time <- safe_get(
+    key = target, namespace = "mtimes", config = config)
+  current_file_modification_time <- ifelse(is_file(target),
+    file.mtime(drake::drake_unquote(target)), NA)
+
+  out <- list(
+    cached_command = cached_command,
+    current_command = current_command,
+    cached_file_modification_time = cached_file_modification_time,
+    current_file_modification_time = current_file_modification_time,
+    cached_dependency_hash = cached_dependency_hash,
+    current_dependency_hash = current_dependency_hash,
+    hashes_of_dependencies = hashes_of_dependencies
+  )
+  out[!is.na(out)]
+}
+
+#' @title Function \code{tracked}
+#' @description Print out which objects, functions, files, targets, etc.
+#' are reproducibly tracked.
+#' @export
+#' @return A character vector with the names of reproducibly-tracked targets.
+#' @param plan workflow plan data frame, same as for function
+#' \code{\link{make}()}.
+#' @param targets names of targets to build, same as for function
+#' \code{\link{make}()}.
+#' @param envir environment to import from, same as for function
+#' \code{\link{make}()}.
+#' @param jobs number of jobs to accelerate the construction
+#' of the dependency graph. A light \code{mclapply}-based
+#' parallelism is used if your operating system is not Windows.
+#' @param verbose logical, whether to print
+#' progress messages to the console.
+#' @examples
+#' \dontrun{
+#' load_basic_example() # Load the canonical example for drake.
+#' # List all the targets/imports that are reproducibly tracked.
+#' tracked(my_plan)
+#' }
+tracked <- function(
+  plan = workplan(),
+  targets = drake::possible_targets(plan),
+  envir = parent.frame(),
+  jobs = 1,
+  verbose = TRUE
+){
+  force(envir)
+  graph <- build_drake_graph(
+    plan = plan, targets = targets, envir = envir,
+    jobs = jobs, verbose = verbose
+  )
+  V(graph)$name
 }
 
 dependencies <- function(targets, config){
@@ -69,7 +177,7 @@ command_dependencies <- function(command){
     unlist()
   files <- extract_filenames(command)
   if (length(files)){
-    files <- eply::quotes(files, single = TRUE)
+    files <- drake::drake_quotes(files, single = TRUE)
   }
   knitr <- find_knitr_doc(command) %>%
     knitr_deps
@@ -149,9 +257,7 @@ is_parsable <- Vectorize(function(x){
       parse(text = x)
       TRUE
     },
-    error = function(e){
-      FALSE
-    }
+    error = error_false
   )
 },
 "x")
@@ -165,7 +271,7 @@ extract_filenames <- function(command){
 }
 
 safe_grepl <- function(pattern, x){
-  tryCatch(grepl(pattern, x), error = function(e) FALSE)
+  tryCatch(grepl(pattern, x), error = error_false)
 }
 
 is_file <- function(x){
@@ -174,4 +280,29 @@ is_file <- function(x){
 
 is_not_file <- function(x){
   !is_file(x)
+}
+
+tidy_command <- function(x) {
+  formatR::tidy_source(
+    source = NULL,
+    comment = FALSE,
+    blank = FALSE,
+    arrow = TRUE,
+    brace.newline = FALSE,
+    indent = 4,
+    output = FALSE,
+    text = x,
+    width.cutoff = 119
+  )$text.tidy %>%
+    paste(collapse = "\n") %>%
+    braces
+}
+
+braces <- function(x) {
+  paste("{\n", x, "\n}")
+}
+
+get_command <- function(target, config) {
+  config$plan$command[config$plan$target == target] %>%
+    tidy_command
 }

@@ -5,12 +5,14 @@
 \title{Function \code{dataframes_graph}}
 \usage{
 dataframes_graph(plan = workplan(), targets = drake::possible_targets(plan),
-  envir = parent.frame(), verbose = TRUE, hook = function(code) {    
-  force(code) }, cache = drake::get_cache(), jobs = 1,
-  parallelism = drake::default_parallelism(), packages = (.packages()),
+  envir = parent.frame(), verbose = TRUE, hook = default_hook,
+  cache = drake::get_cache(verbose = verbose), jobs = 1,
+  parallelism = drake::default_parallelism(), packages = rev(.packages()),
   prework = character(0), build_times = TRUE, digits = 3,
   targets_only = FALSE, split_columns = FALSE, font_size = 20,
-  config = NULL)
+  config = NULL, from = NULL, mode = c("out", "in", "all"),
+  order = NULL, subset = NULL, make_imports = TRUE,
+  from_scratch = FALSE)
 }
 \arguments{
 \item{plan}{workflow plan data frame, same as for function
@@ -81,11 +83,48 @@ If not \code{NULL},
 \code{config} overrides all arguments except
 \code{build_times}, \code{digits}, \code{targets_only},
 \code{split_columns}, and \code{font_size}.}
+
+\item{from}{Optional collection of target/import names.
+If \code{from} is nonempty,
+the graph will restrict itself to
+a neighborhood of \code{from}.
+Control the neighborhood with
+\code{mode} and \code{order}.}
+
+\item{mode}{Which direction to branch out in the graph
+to create a neighborhood around \code{from}.
+Use \code{"in"} to go upstream,
+\code{"out"} to go downstream,
+and \code{"all"} to go both ways and disregard
+edge direction altogether.}
+
+\item{order}{How far to branch out to create
+a neighborhood around \code{from} (measured
+in the number of nodes). Defaults to
+as far as possible.}
+
+\item{subset}{Optional character vector of of target/import names.
+Subset of nodes to display in the graph.
+Applied after \code{from}, \code{mode}, and \code{order}.
+Be advised: edges are only kept for adjacent nodes in \code{subset}.
+If you do not select all the intermediate nodes,
+edges will drop from the graph.}
+
+\item{make_imports}{logical, whether to import external files
+and objects from the user's workspace to determine
+which targets are up to date. If \code{FALSE}, the computation
+is faster, but all the relevant information is drawn from the cache
+and may be out of date.}
+
+\item{from_scratch}{logical, whether to assume all the targets
+will be made from scratch on the next \code{\link{make}()}.
+Makes all targets outdated, but keeps information about
+build progress in previous \code{\link{make}()}s.}
 }
 \value{
-a list of three data frames: one for nodes,
+A list of three data frames: one for nodes,
 one for edges, and one for
-the legend/key nodes. The list also contains the
+the legend nodes. The list also contains the
 default title of the graph.
 }
 \description{
@@ -94,17 +133,27 @@ so you can plot your own custom \code{visNetwork}.
 }
 \examples{
 \dontrun{
-load_basic_example()
+load_basic_example() # Load drake's canonical example.
+# Get a list of data frames representing the nodes, edges,
+# and legend nodes of the visNetwork graph from vis_drake_graph().
 raw_graph <- dataframes_graph(my_plan)
+# Choose a subset of the graph.
+smaller_raw_graph <- dataframes_graph(
+  my_plan,
+  from = c("small", "reg2"),
+  mode = "in"
+)
+# Inspect the raw graph.
 str(raw_graph)
-# Plot your own custom visNetwork graph
+# Use the data frames to plot your own custom visNetwork graph.
+# For example, you can omit the legend nodes
+# and change the direction of the graph.
 library(magrittr)
 library(visNetwork)
 visNetwork(nodes = raw_graph$nodes, edges = raw_graph$edges) \%>\%
-  visLegend(useGroups = FALSE, addNodes = raw_graph$legend_nodes) \%>\%
-  visHierarchicalLayout(direction = 'LR')
+  visHierarchicalLayout(direction = 'UD')
 }
 }
 \seealso{
-\code{\link{plot_graph}}, \code{\link{build_graph}}
+\code{\link{vis_drake_graph}}, \code{\link{build_drake_graph}}
 }

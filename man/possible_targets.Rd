@@ -10,7 +10,7 @@ possible_targets(plan = workplan())
 \item{plan}{workflow plan data frame}
 }
 \value{
-character vector of possible targets
+Character vector of possible targets given the workflow plan.
 }
 \description{
 internal function, returns the list of
@@ -19,7 +19,9 @@ argument to \code{\link{make}()}.
 }
 \examples{
 \dontrun{
-load_basic_example()
+load_basic_example() # Load the canonical drake example.
+# List the possible targets you could choose for the
+# `targets` argument to make(). You may choose any subset.
 possible_targets(my_plan)
 }
 }

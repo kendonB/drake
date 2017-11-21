@@ -40,15 +40,19 @@ units of execution.
  opens up a whole trove of parallel backends
  powered by the \code{future} and \code{future.batchtools}
  packages. First, set the parallel backend globally using
- \code{\link{backend}()} (or equivalently, \code{future::plan()}).
+ \code{future::plan()}.
  Then, apply the backend to your workplan
  using \code{make(..., parallelism = "future_lapply", jobs = ...)}.
  But be warned: the environment for each target needs to be set up
  from scratch, so this backend type is higher overhead than either
  \code{mclapply} or \code{parLapply}.
  Also, the \code{jobs} argument only applies to the imports.
- for the max number of jobs to use for building targets,
- use options(mc.cores = jobs), or see \code{?future::future::.options}
+ To set the max number of jobs, set the \code{workers}
+ argument where it exists. For example, call
+ \code{future::plan(multisession(workers = 4))},
+ then call \code{\link{make}(your_plan, parallelism = "future_lapply")}.
+ You might also try options(mc.cores = jobs),
+ or see \code{?future::future::.options}
  for environment variables that set the max number of jobs.
  }
 
@@ -80,7 +84,9 @@ units of execution.
 }}
 }
 \examples{
+# See all the parallel computing options.
 parallelism_choices()
+# See just the distributed computing options.
 parallelism_choices(distributed_only = TRUE)
 }
 \seealso{

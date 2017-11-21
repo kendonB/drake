@@ -7,10 +7,11 @@
 default_parallelism()
 }
 \value{
-default parallelism option for the current platform
+The default parallelism option for your system.
 }
 \description{
-Default parallelism for \code{\link{make}()}:
+Show the default parallelism for \code{\link{make}()}
+on your system:
 \code{'parLapply'} for Windows machines and \code{'mclapply'}
 for other platforms.
 }

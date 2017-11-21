@@ -9,18 +9,25 @@ silencer_hook(code)
 \arguments{
 \item{code}{code to run to build the target.}
 }
+\value{
+A function that you can supply to the \code{hook} argument
+of \code{\link{make}()}.
+}
 \description{
 an example \code{hook} argument to
 \code{make()} that redirects output and error messages
 }
 \examples{
 \dontrun{
+# Test out the silencer hook on its own.
 silencer_hook({
   cat(1234)
   stop(5678)
 })
+# Make a new workflow plan.
 x <- workplan(loud = cat(1234), bad = stop(5678))
-make(x, hook = silencer_hook)
+# Test out the silencer hook on a drake project.
+make(x, hook = silencer_hook) # All output should be suppressed.
 }
 }
 \seealso{

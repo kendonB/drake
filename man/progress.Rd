@@ -6,7 +6,8 @@
 \usage{
 progress(..., list = character(0), no_imported_objects = FALSE,
   imported_files_only = logical(0), path = getwd(), search = TRUE,
-  cache = drake::get_cache(path = path, search = search))
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
+  verbose = TRUE)
 }
 \arguments{
 \item{...}{objects to load from the cache, as names (unquoted)
@@ -35,9 +36,12 @@ current working directory only.}
 \item{cache}{optional drake cache. See code{\link{new_cache}()}.
 If \code{cache} is supplied,
 the \code{path} and \code{search} arguments are ignored.}
+
+\item{verbose}{whether to print console messages}
 }
 \value{
-Statuses of targets
+The build progress of each target reached by
+the current \code{\link{make}()} so far.
 }
 \description{
 Get the build progress (overall or individual targets)
@@ -48,12 +52,13 @@ Skipped objects are not listed.
 }
 \examples{
 \dontrun{
-load_basic_example()
-make(my_plan)
-progress()
-progress(small, large)
-progress(list = c("small", "large"))
-progress(no_imported_objects = TRUE)
+load_basic_example() # Load the canonical example.
+make(my_plan) # Run the project, build the targets.
+# Watch the changing progress() as make() is running.
+progress() # List all the targets reached so far.
+progress(small, large) # Just see the progress of some targets.
+progress(list = c("small", "large")) # Same as above.
+progress(no_imported_objects = TRUE) # Ignore imported R objects.
 }
 }
 \seealso{

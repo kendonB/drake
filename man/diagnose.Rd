@@ -5,7 +5,8 @@
 \title{Function \code{diagnose}}
 \usage{
 diagnose(target = NULL, character_only = FALSE, path = getwd(),
-  search = TRUE, cache = drake::get_cache(path = path, search = search))
+  search = TRUE, cache = drake::get_cache(path = path, search = search,
+  verbose = verbose), verbose = TRUE)
 }
 \arguments{
 \item{target}{name of the target of the error to get.
@@ -27,6 +28,12 @@ current working directory only.}
 \item{cache}{optional drake cache. See code{\link{new_cache}()}.
 If \code{cache} is supplied,
 the \code{path} and \code{search} arguments are ignored.}
+
+\item{verbose}{whether to print console messages}
+}
+\value{
+Either a character vector of target names or an object
+of class \code{"error"}.
 }
 \description{
 Get the last stored error of a target
@@ -41,17 +48,25 @@ for ordinary error messages printed to the console.
 }
 \examples{
 \dontrun{
-diagnose()
+diagnose() # List all the targets with recorded error logs.
+# Define a function doomed to failure.
 f <- function(){
   stop("unusual error")
 }
+# Create a workflow plan doomed to failure.
 bad_plan <- workplan(my_target = f())
+# Running the project should generate an error
+# when trying to build 'my_target'.
 make(bad_plan)
-failed() # from the last make() only
-diagnose() # from all previous make()'s
+failed() # List the failed targets from the last make() (my_target).
+# List targets that failed at one point or another
+# over the course of the project (my_target).
+# Drake keeps all the error logs.
+diagnose()
+# Get the error log, an object of class "error".
 error <- diagnose(my_target)
-str(error)
-error$calls # View the traceback.
+str(error) # See what's inside the error log.
+error$calls # View the traceback. (See the traceback() function).
 }
 }
 \seealso{

@@ -5,8 +5,8 @@
 \title{Function \code{loadd}}
 \usage{
 loadd(..., list = character(0), imported_only = FALSE, path = getwd(),
-  search = TRUE, cache = drake::get_cache(path = path, search = search),
-  envir = parent.frame(), jobs = 1)
+  search = TRUE, cache = drake::get_cache(path = path, search = search,
+  verbose = verbose), envir = parent.frame(), jobs = 1, verbose = TRUE)
 }
 \arguments{
 \item{...}{targets to load from the cache, as names (unquoted)
@@ -39,6 +39,11 @@ non-Windows systems, the loading process for multiple objects
 can be lightly parallelized via \code{parallel::mclapply()}.
 just set jobs to be an integer greater than 1. On Windows,
 \code{jobs} is automatically demoted to 1.}
+
+\item{verbose}{whether to print console messages}
+}
+\value{
+\code{NULL}
 }
 \description{
 Load object(s) from the drake cache into the
@@ -50,15 +55,17 @@ imported_only is \code{TRUE}).
 }
 \examples{
 \dontrun{
-load_basic_example()
-make(my_plan)
-loadd(reg1) # now check ls()
-reg1
-loadd(small)
+load_basic_example() # Load drake's canonical example.
+make(my_plan) # Run the projects, build the targets.
+loadd(small) # Load target 'small' into your workspace.
 small
+# For many targets, you can parallelize loadd()
+# using the 'jobs' argument.
 loadd(list = c("small", "large"), jobs = 2)
-loadd(imported_only = TRUE) # load all imported objects and functions
-loadd() # load everything, including built targets
+loadd(imported_only = TRUE) # Load all the imported objects/functions.
+# Load everything, including built targets. Be sure your computer
+# has enough memory.
+loadd()
 }
 }
 \seealso{

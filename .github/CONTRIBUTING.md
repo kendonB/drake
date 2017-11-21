@@ -1,3 +1,15 @@
-# Troubleshooting
+# Code of Conduct
 
-The "caution" vignette (`vignette("caution")`, also linked from the [CRAN page](https://CRAN.R-project.org/package=drake) under "vignettes") lists some known issues, limitations, and edge cases. Please look there first if you encounter problems or unexpected behavior. If that fails, please search the [issues page](https://github.com/wlandau-lilly/drake/issues), taking care to browse the closed issues as well. If you are still unsatisfied, please submit your bug report, question, or feature reqest as a [new issue](https://github.com/wlandau-lilly/drake/issues/new).
+Maintainers and contributors must follow this repository's [code of conduct](https://github.com/wlandau-lilly/drake/blob/master/CONDUCT.md).
+
+# Contributions
+
+Suggestions, bug reports, and code are welcome. Please [fork this repository](https://help.github.com/articles/fork-a-repo/) and submit a [pull request](https://github.com/wlandau-lilly/drake/pulls). For pull requests, please consider some ways that you could make life easier for the maintainers.
+
+- Run `devtools::test()` and `covr::package_coverage()` to ensure that the unit tests are still clean and exhaustive.
+- Run `roxygen2::roxygenize()` to update the `.Rd` help files.
+- Check `lintr::lint_package()` and `goodpractice::gp()` to catch stylistic idiosyncracies and potential mistakes.
+
+# Best ways to help
+
+Multiple [issues](https://github.com/wlandau-lilly/drake/issues) are labeled ["help wanted"](https://github.com/wlandau-lilly/drake/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22). This is where help from the community would be particularly appreciated.

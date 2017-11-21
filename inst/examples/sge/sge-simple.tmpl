@@ -8,16 +8,10 @@
 
 # Each line beginning with `#$` contains flags to qsub.
 # In this case, we are going to write the equivalent of
-# qsub -sync y -cwd -j y
+# qsub -cwd -j y -V
 # Enter `man qsub` in the Linux terminal for details.
 
-# First, we tell qsub to wait until
-# the job finished before exiting.
-# In other words, we build a target only after
-# its dependencies are ready.
-#$ -sync y
-
-# Next, we point the job's working directory to the
+# First, we point the job's working directory to the
 # directory in which you called `drake::make()`.
 #$ -cwd
 
@@ -29,6 +23,11 @@
 ## Use environment variables
 #$ -V
 
-module load R-qualified
+# You may have to change the following to 'module load R-3.4.2' or similar.
+# Just be sure to name the correct environment module.
+# See 'module avail' or 'module avail R'.
+module load R
+
+# Run the work.
 Rscript -e 'batchtools::doJobCollection("<%= uri %>")'
 exit 0

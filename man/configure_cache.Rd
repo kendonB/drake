@@ -4,10 +4,10 @@
 \alias{configure_cache}
 \title{Function configure_cache}
 \usage{
-configure_cache(cache = drake::get_cache(),
+configure_cache(cache = drake::get_cache(verbose = verbose),
   short_hash_algo = drake::default_short_hash_algo(cache = cache),
   long_hash_algo = drake::default_long_hash_algo(cache = cache),
-  clear_progress = FALSE, overwrite_hash_algos = FALSE)
+  clear_progress = FALSE, overwrite_hash_algos = FALSE, verbose = TRUE)
 }
 \arguments{
 \item{cache}{cache to configure}
@@ -31,6 +31,11 @@ build progress if this cache was used for previous calls to
 
 \item{overwrite_hash_algos}{logical, whether to try to overwrite
 the hash algorithms in the cache with any user-specified ones.}
+
+\item{verbose}{whether to print console messages}
+}
+\value{
+A drake/storr cache.
 }
 \description{
 configure a cache for drake. This is
@@ -38,17 +43,20 @@ to prepare the cache to be called from \code{\link{make}()}.
 }
 \examples{
 \dontrun{
-load_basic_example()
-config <- make(my_plan)
+load_basic_example() # Load drake's canonical example into the workspace.
+config <- make(my_plan) # Run the project, build all the targets.
+# Locate the drake/storr cache of the project
+# inside the master internal configuration list.
 cache <- config$cache
-long_hash(cache)
+long_hash(cache) # Return the long hash algorithm used.
+# Change the long hash algorithm of the cache.
 cache <- configure_cache(
   cache = cache,
   long_hash_algo = "murmur32",
   overwrite_hash_algos = TRUE
 )
-long_hash(cache) # long hash algorithm. See ?default_long_hash_algorithm.
-make(my_plan) # Changing the long hash puts targets out of date.
+long_hash(cache) # Show the new long hash algorithm.
+make(my_plan) # Changing the long hash puts the targets out of date.
 }
 }
 \seealso{

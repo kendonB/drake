@@ -1,14 +1,16 @@
 # Below, the colors from "target" through
-# "unload" are for the console. The rest
-# are for plot_graph().
+# "fail" are for the console. The rest
+# are for vis_drake_graph().
 colors <- c(
   target = "green3",
   import = "dodgerblue3",
   missing = "darkorchid3",
+  cache = "skyblue1",
   check = "skyblue1",
+  connect = "skyblue1",
   load = "#ff9933",
   unload = "#ff7221",
-  timeout = "maroon",
+  trigger = "maroon",
   retry = "forestgreen",
   fail = "red",
   up_to_date = "forestgreen",
@@ -23,17 +25,22 @@ colors <- c(
 #' @title Function palette
 #' @export
 #' @description show color palette for drake.
-#' Used in both the console and \code{\link{plot_graph}()}
+#' Used in both the console and \code{\link{vis_drake_graph}()}
 #' Your console must have the crayon package enabled.
 #' @details This palette applies to console output
 #' (internal functions \code{console()} and
 #' \code{console_many_targets()}) and the node colors
-#' in \code{\link{plot_graph}()}.
+#' in \code{\link{vis_drake_graph}()}.
 #' So if you want to contribute improvements to the palette,
 #' please both \code{drake_palette()} and
 #' \code{visNetwork::visNetwork(nodes = \link{legend_nodes}())}
+#' @return There is a console message,
+#' but the actual return value is \code{NULL}.
 #' @examples
+#' # Show drake's color palette as text.
 #' drake_palette()
+#' # Show part of the palette as an interactive visNetwork graph.
+#' # These are the nodes in the legend of vis_drake_graph().
 #' visNetwork::visNetwork(nodes = legend_nodes())
 drake_palette <- function(){
   out <- lapply(
@@ -43,7 +50,7 @@ drake_palette <- function(){
     }
   )
   out <- paste(out, collapse = "\n")
-  cat(out, "\n")
+  message(out)
 }
 
 color <- function(x, color) {

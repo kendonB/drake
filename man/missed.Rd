@@ -5,9 +5,9 @@
 \title{Function \code{missed}}
 \usage{
 missed(plan = workplan(), targets = drake::possible_targets(plan),
-  envir = parent.frame(), verbose = TRUE, hook = function(code) {    
-  force(code) }, jobs = 1, parallelism = drake::default_parallelism(),
-  packages = (.packages()), prework = character(0), config = NULL)
+  envir = parent.frame(), verbose = TRUE, jobs = 1,
+  parallelism = drake::default_parallelism(), packages = rev(.packages()),
+  prework = character(0), graph = NULL, config = NULL)
 }
 \arguments{
 \item{plan}{workflow plan data frame, same as for function
@@ -20,8 +20,6 @@ missed(plan = workplan(), targets = drake::possible_targets(plan),
 \code{\link{make}()}.}
 
 \item{verbose}{logical, whether to output messages to the console.}
-
-\item{hook}{same as for \code{\link{make}}}
 
 \item{jobs}{The \code{outdated()} function is called internally,
 and it needs to import objects and examine your
@@ -39,6 +37,8 @@ default.}
 
 \item{prework}{same as for \code{\link{make}}}
 
+\item{graph}{same as for \code{\link{make}}}
+
 \item{config}{option internal runtime parameter list of
 \code{\link{make}(...)},
 produced with \code{\link{config}()}.
@@ -48,6 +48,9 @@ Computing this
 in advance could save time if you plan multiple calls to
 \code{missed()}.}
 }
+\value{
+Character vector of names of missing objects and files.
+}
 \description{
 Report any import objects required by your workplan
 plan but missing from your workspace.
@@ -55,10 +58,10 @@ IMPORTANT: you must be in the root directory of your project.
 }
 \examples{
 \dontrun{
-load_basic_example()
-missed(my_plan)
-rm(reg1)
-missed(my_plan)
+load_basic_example() # Load the canonical example.
+missed(my_plan) # All the imported files and objects should be present.
+rm(reg1) # Remove an import dependency from you workspace.
+missed(my_plan) # Should report that reg1 is missing.
 }
 }
 \seealso{

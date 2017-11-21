@@ -11,8 +11,9 @@ deps(x)
 Strings are commands from your workflow plan data frame.}
 }
 \value{
-names of dependencies. Files wrapped in single quotes.
-The other names listed are functions or generic objects.
+A character vector, names of dependencies.
+Files wrapped in single quotes.
+The other names listed are functions or generic R objects.
 }
 \description{
 List the dependencies of a function or workflow plan command.
@@ -26,21 +27,31 @@ to produce the output file \code{'report.md'}, so technically,
 they are dependencies of \code{'report.md'}, not \code{'report.Rmd'}
 }
 \examples{
+# Your workflow likely depends on functions in your workspace.
 f <- function(x, y){
   out <- x + y + g(x)
   saveRDS(out, 'out.rds')
 }
+# Find the dependencies of f. These could be R objects/functions
+# in your workspace or packages. Any file names or target names
+# will be ignored.
 deps(f)
+# Define a workflow plan data frame that uses your function f().
 my_plan <- workplan(
   x = 1 + some_object,
   my_target = x + readRDS('tracked_input_file.rds'),
   return_value = f(x, y, g(z + w))
 )
+# Get the dependencies of workflow plan commands.
+# Here, the dependencies could be R functions/objects from your workspace
+# or packages, imported files, or other targets in the workflow plan.
 deps(my_plan$command[1])
 deps(my_plan$command[2])
 deps(my_plan$command[3])
 \dontrun{
-load_basic_example() # Writes 'report.Rmd'.
-deps("'report.Rmd'") # dependencies of future knitted output 'report.md'
+load_basic_example() # Loads the basic example and writes 'report.Rmd'.
+# Dependencies of the knitr-generated targets like 'report.md'
+# include targets/imports referenced with `readd()` or `loadd()`.
+deps("'report.Rmd'")
 }
 }

@@ -12,11 +12,14 @@
 #' \code{\link{make}}
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' make(my_plan)
-#' predict_runtime(my_plan, digits = 4) # everything is up to date
+#' load_basic_example() # Load drake's canonical example.
+#' make(my_plan) # Run the project, build the targets.
+#' predict_runtime(my_plan, digits = 4) # Everything is up to date.
 #' predict_runtime(my_plan, digits = 4, from_scratch = TRUE) # 1 job
+#' # Assumes you clean() out your project and start from scratch with 2 jobs.
 #' predict_runtime(my_plan, future_jobs = 2, digits = 4, from_scratch = TRUE)
+#' # Just predict how long it will take to build
+#' # the targets 'small' and 'large'.
 #' predict_runtime(
 #'   my_plan,
 #'   targets = c("small", "large"),
@@ -25,6 +28,8 @@
 #'   from_scratch = TRUE
 #' )
 #' }
+#' @return A \code{lubridate} \code{Duration} object
+#' with the predicted runtime of the next \code{\link{make}()}.
 #' @param plan same as for \code{\link{make}}
 #' @param from_scratch logical, whether to predict a
 #' \code{\link{make}()} build from scratch or to
@@ -72,14 +77,12 @@ predict_runtime <- function(
   targets = drake::possible_targets(plan),
   envir = parent.frame(),
   verbose = TRUE,
-  hook = function(code){
-    force(code)
-  },
-  cache = drake::get_cache(path = path, search = search),
+  hook = default_hook,
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
   parallelism = drake::default_parallelism(),
   jobs = 1,
   future_jobs = jobs,
-  packages = (.packages()),
+  packages = rev(.packages()),
   prework = character(0),
   config = NULL,
   digits = 3,
@@ -143,16 +146,20 @@ predict_runtime <- function(
 #'
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' make(my_plan)
-#' rate_limiting_times(my_plan) # everything is up to date
-#' rate_limiting_times(my_plan, from_scratch  = TRUE, digits = 4) # 1 job
+#' load_basic_example() # Load drake's canonical example.
+#' make(my_plan) # Run the project, build the targets.
+#' rate_limiting_times(my_plan) # Everything is up to date.
+#' # Assume everything runs from scratch with 1 job.
+#' rate_limiting_times(my_plan, from_scratch  = TRUE, digits = 4)
+#' # With 2 jobs, some of the targets are not rate-limiting.
 #' rate_limiting_times(
 #'   my_plan,
 #'   future_jobs = 2,
 #'   from_scratch = TRUE,
 #'   digits = 4
 #' )
+#' # What if we just build the 'small' and 'large' targets,
+#' # plus dependencies?
 #' rate_limiting_times(
 #'   my_plan,
 #'   targets = c("small", "large"),
@@ -161,6 +168,9 @@ predict_runtime <- function(
 #'   digits = 4
 #' )
 #' }
+#'
+#' @return A data frame of times of the worst-case scenario
+#' rate-limiting targets in each parallelizable stage.
 #'
 #' @param plan same as for \code{\link{make}}
 #'
@@ -224,14 +234,12 @@ rate_limiting_times <- function(
   targets = drake::possible_targets(plan),
   envir = parent.frame(),
   verbose = TRUE,
-  hook = function(code){
-    force(code)
-  },
-  cache = drake::get_cache(path = path, search = search),
+  hook = default_hook,
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
   parallelism = drake::default_parallelism(),
   jobs = 1,
   future_jobs = jobs,
-  packages = (.packages()),
+  packages = rev(.packages()),
   prework = character(0),
   config = NULL,
   digits = 3,
@@ -240,7 +248,7 @@ rate_limiting_times <- function(
 ){
   force(envir)
   if (is.null(config)){
-    config <- config(
+    config <- drake_config(
       plan = plan,
       targets = targets,
       envir = envir,
@@ -296,7 +304,8 @@ rate_limiting_times <- function(
   }
   keep_these <- setdiff(keys, rownames(times))
   graph <- delete_vertices(config$graph, v = keep_these)
-  times <- resolve_levels(config = list(nodes = times, graph = graph))
+  times <- resolve_levels(
+    config = list(nodes = times, graph = graph, jobs = config$jobs))
   colnames(times) <- gsub("^level$", "stage", colnames(times))
   ddply(times, "stage", rate_limiting_at_stage, future_jobs = future_jobs) %>%
     round_times(digits = digits) %>%

@@ -1,11 +1,12 @@
-time_stamps <- function(config){
+time_stamps <- function(build_these, config){
   cache_path <- cache_path(config$cache)
   stamp_dir <- time_stamp_dir(cache_path)
   dir_empty(stamp_dir)
   write_time_stamp_template(cache_path)
   targets <- intersect(V(config$graph)$name, config$plan$target)
-  stamp_these <- setdiff(targets, config$attempted_targets)
-  lapply(stamp_these, write_time_stamp, config = config)
+  stamp_these <- setdiff(targets, build_these)
+  lightly_parallelize(
+    stamp_these, write_time_stamp, jobs = config$jobs, config = config)
   return(invisible())
 }
 

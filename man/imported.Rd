@@ -5,7 +5,8 @@
 \title{Function \code{imported}}
 \usage{
 imported(files_only = FALSE, path = getwd(), search = TRUE,
-  cache = drake::get_cache(path = path, search = search))
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
+  verbose = TRUE)
 }
 \arguments{
 \item{files_only}{logical, whether to show imported files only
@@ -23,18 +24,21 @@ current working directory only.}
 
 \item{cache}{drake cache. See \code{\link{new_cache}()}.
 If supplied, \code{path} and \code{search} are ignored.}
+
+\item{verbose}{whether to print console messages}
 }
 \value{
-character vector naming the imported objects in the cache
+Character vector naming the imports in the cache.
 }
 \description{
 List all the imported objects in the drake cache
 }
 \examples{
 \dontrun{
-load_basic_example()
-make(my_plan)
-imported()
+load_basic_example() # Load the canonical example.
+make(my_plan) # Run the project, build the targets.
+imported() # List all the imported objects/files in the cache.
+# For imported files, only the fingerprints/hashes are stored.
 }
 }
 \seealso{

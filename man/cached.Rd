@@ -6,7 +6,7 @@
 \usage{
 cached(..., list = character(0), no_imported_objects = FALSE,
   path = getwd(), search = TRUE, cache = drake::get_cache(path = path,
-  search = search))
+  search = search, verbose = verbose), verbose = TRUE)
 }
 \arguments{
 \item{...}{objects to load from the cache, as names (unquoted)
@@ -37,6 +37,8 @@ Ignored if a \code{cache} is supplied.}
 
 \item{cache}{drake cache. See \code{\link{new_cache}()}.
 If supplied, \code{path} and \code{search} are ignored.}
+
+\item{verbose}{whether to print console messages}
 }
 \value{
 Either a named logical indicating whether the given
@@ -53,11 +55,15 @@ Read/load a cached item with \code{\link{readd}()} or
 }
 \examples{
 \dontrun{
-load_basic_example()
-make(my_plan)
-cached(list = 'reg1')
+load_basic_example() # Load drake's canonical example.
+make(my_plan) # Run the project, build all the targets.
+cached(list = 'reg1') # Is 'reg1' in the cache?
+# List all the targets and imported files in the cache.
+# Exclude R objects imported from your workspace.
 cached(no_imported_objects = TRUE)
+# List all targets and imports in the cache.
 cached()
+# For file targets/imports, only the fingerprints/hashes are stored.
 }
 }
 \seealso{

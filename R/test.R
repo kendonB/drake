@@ -17,13 +17,20 @@ testrun <- function(config) {
 }
 
 justbuilt <- function(config) {
-  sapply(config$cache$list(namespace = "progress"),
-    function(target)
-      config$cache$get(key = target, namespace = "progress")) %>%
-      Filter(f = function(x) x == "finished") %>%
-      names %>%
-      intersect(y = config$plan$target) %>%
-      sort
+  recorded <- config$cache$list(namespace = "progress")
+  all <- lightly_parallelize(
+    X = recorded,
+    FUN = function(target){
+      config$cache$get(key = target, namespace = "progress")
+    },
+    jobs = config$jobs
+  )
+  names(all) <- recorded
+  unlist(all) %>%
+    Filter(f = function(x) x == "finished") %>%
+    names %>%
+    intersect(y = config$plan$target) %>%
+    sort
 }
 
 nobuild <- function(config) {
@@ -31,21 +38,16 @@ nobuild <- function(config) {
 }
 
 test_with_dir <- function(desc, ...){
-  root <- tempdir()
-  stopifnot(file.exists(root))
-  relative_dir <- digest::digest(
-    list(desc, sessionInfo()$platform, rnorm(1)),
-    algo = default_short_hash_algo()
-  )
-  dir <- file.path(root, relative_dir)
-  dir_empty(dir)
+  new <- tempfile()
+  dir_empty(new)
   with_dir(
-    new = dir,
+    new = new,
     code = {
       set_test_backend()
       test_that(desc = desc, ...)
     }
   )
+  invisible()
 }
 
 restore_options <- function(old){
@@ -70,4 +72,13 @@ with_all_options <- function(code) {
   old <- options()
   on.exit(restore_options(old))
   force(code)
+}
+
+write_v4.3.0_project <- function(){ # nolint
+  zip <- system.file(
+    file.path("testing", "built_basic_example_v4.3.0.zip"),
+    package = "drake",
+    mustWork = TRUE
+  )
+  unzip(zip, exdir = ".", setTimes = TRUE)
 }

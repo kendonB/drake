@@ -17,8 +17,13 @@ vignette: >
 
 ```{r suppression, echo = F}
 suppressMessages(suppressWarnings(library(drake)))
-clean(destroy = TRUE)
+clean(destroy = TRUE, verbose = FALSE)
 unlink(c("Makefile", "report.Rmd", "shell.sh", "STDIN.o*", "Thumbs.db"))
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  error = TRUE,
+  warning = TRUE
+)
 ```
 
 # Quick examples
@@ -28,7 +33,7 @@ Inspect and run your project.
 ```{r quickstartquickstart, eval = FALSE}
 library(drake)
 load_basic_example() # Also (over)writes report.Rmd.
-plot_graph(my_plan) # Hover, click, drag, zoom, pan.
+vis_drake_graph(my_plan) # Hover, click, drag, zoom, pan.
 make(my_plan) # Run the workflow.
 outdated(my_plan) # Check that everything is already up to date.
 ```
@@ -46,8 +51,8 @@ error$calls              # Call stack / traceback
 Dive deeper into the built-in examples.
 
 ```{r noeval2, eval = FALSE}
-example_drake("basic") # Write the code files.
-examples_drake() # List the other examples.
+drake_example("basic") # Write the code files.
+drake_examples() # List the other examples.
 vignette("quickstart") # This vignette
 ```
 
@@ -125,22 +130,24 @@ Each row is an intermediate step, and each **command** generates a **target**. A
 
 ```{r graph1quick, eval = FALSE}
 # Hover, click, drag, zoom, and pan.
-plot_graph(my_plan, width = "100%", height = "500px")
+vis_drake_graph(my_plan, width = "100%", height = "500px")
 ```
 
 <iframe
-src = "https://cdn.rawgit.com/wlandau-lilly/drake/74a87231/images/outdated.html"
+src = "https://cdn.rawgit.com/wlandau-lilly/drake/2211b300/images/outdated.html"
 width = "100%" height = "600px" allowtransparency="true"
 style="border: none; box-shadow: none">
 </iframe>
 
-See also `dataframes_graph()`, `render_graph()`, and `config()` for faster and more customized regraphing.
+Also see the alias `drake_graph()`. Functions `dataframes_graph()`, `render_drake_graph()`, and `drake_config()` allow for faster and more customized regraphing.
 
 You can also check the dependencies of individual targets.
 
 ```{r checkdeps}
 deps(reg2)
+
 deps(my_plan$command[1]) # Files like report.Rmd are single-quoted.
+
 deps(my_plan$command[nrow(my_plan)])
 ```
 
@@ -148,13 +155,14 @@ List all the reproducibly-tracked objects and files, including imports and targe
 
 ```{r tracked}
 tracked(my_plan, targets = "small")
+
 tracked(my_plan)
 ```
 
 Check for cycles, missing input files, and other pitfalls.
 
 ```{r check}
-check(my_plan)
+check_plan(my_plan)
 ```
 
 # Generate the workflow plan
@@ -171,22 +179,22 @@ my_datasets
 For multiple replicates:
 
 ```{r expand}
-expand(my_datasets, values = c("rep1", "rep2"))
+expand_plan(my_datasets, values = c("rep1", "rep2"))
 ```
 
 Each dataset is analyzed multiple ways.
 
 ```{r methods}
 methods <- workplan(
-  regression1 = reg1(..dataset..), # nolint
-  regression2 = reg2(..dataset..)) # nolint
+  regression1 = reg1(dataset__), # nolint
+  regression2 = reg2(dataset__)) # nolint
 methods
 ```
 
-We evaluate the `..dataset..` wildcard.
+We evaluate the `dataset__` wildcard.
 
 ```{r analyses}
-my_analyses <- analyses(methods, data = my_datasets)
+my_analyses <- plan_analyses(methods, data = my_datasets)
 my_analyses
 ```
 
@@ -194,11 +202,11 @@ Next, we summarize each analysis of each dataset using summary statistics and re
 
 ```{r summaries}
 summary_types <- workplan(
-  summ = suppressWarnings(summary(..analysis..)), # nolint
-  coef = coefficients(..analysis..)) # nolint
+  summ = suppressWarnings(summary(analysis__)), # nolint
+  coef = coefficients(analysis__)) # nolint
 summary_types
 
-results <- summaries(summary_types, analyses = my_analyses,
+results <- plan_summaries(summary_types, analyses = my_analyses,
   datasets = my_datasets, gather = NULL)
 results
 ```
@@ -223,19 +231,26 @@ my_plan
 
 # Flexible helpers to make workflow plans
 
-If your workflow does not fit the rigid datasets/analyses/summaries framework, check out functions `expand()`, `evaluate()`, and `gather()`.
+If your workflow does not fit the rigid datasets/analyses/summaries framework, check out functions `expand_plan()`, `evaluate_plan()`, and `gather_plan()`.
 
 ```{r more_expansions_and_plans}
 df <- workplan(data = simulate(center = MU, scale = SIGMA))
 df
-df <- expand(df, values = c("rep1", "rep2"))
+
+df <- expand_plan(df, values = c("rep1", "rep2"))
 df
-evaluate(df, wildcard = "MU", values = 1:2)
-evaluate(df, wildcard = "MU", values = 1:2, expand = FALSE)
-evaluate(df, rules = list(MU = 1:2, SIGMA = c(0.1, 1)), expand = FALSE)
-evaluate(df, rules = list(MU = 1:2, SIGMA = c(0.1, 1, 10)))
-gather(df)
-gather(df, target = "my_summaries", gather = "rbind")
+
+evaluate_plan(df, wildcard = "MU", values = 1:2)
+
+evaluate_plan(df, wildcard = "MU", values = 1:2, expand = FALSE)
+
+evaluate_plan(df, rules = list(MU = 1:2, SIGMA = c(0.1, 1)), expand = FALSE)
+
+evaluate_plan(df, rules = list(MU = 1:2, SIGMA = c(0.1, 1, 10)))
+
+gather_plan(df)
+
+gather_plan(df, target = "my_summaries", gather = "rbind")
 ```
 
 # Run the workflow
@@ -244,6 +259,7 @@ You may want to check for outdated or missing targets/imports first.
 
 ```{r firstmake}
 outdated(my_plan, verbose = FALSE) # Targets that need to be (re)built.
+
 missed(my_plan, verbose = FALSE) # Checks your workspace.
 ```
 
@@ -261,6 +277,7 @@ ls()
 
 ```{r plotgraphfirstmake}
 outdated(my_plan, verbose = FALSE) # Everything is up to date.
+
 build_times(digits = 4) # How long did it take to make each target?
 ```
 
@@ -270,16 +287,16 @@ In the new graph, the red nodes from before are now green.
 
 ```{r graph2quick, eval = FALSE}
 # Hover, click, drag, zoom, and pan.
-plot_graph(my_plan, width = "100%", height = "500px")
+vis_drake_graph(my_plan, width = "100%", height = "500px")
 ```
 
 <iframe
-src = "https://cdn.rawgit.com/wlandau-lilly/drake/74a87231/images/built.html"
+src = "https://cdn.rawgit.com/wlandau-lilly/drake/2211b300/images/built.html"
 width = "100%" height = "600px" allowtransparency="true"
 style="border: none; box-shadow: none">
 </iframe>
 
-Optionally, get `visNetwork` nodes and edges so you can make your own plot with `visNetwork` or `render_graph()`.
+Optionally, get `visNetwork` nodes and edges so you can make your own plot with `visNetwork` or `render_drake_graph()`.
 
 ```{r dfgraph2quick, eval = FALSE}
 dataframes_graph(my_plan)
@@ -289,23 +306,33 @@ Use `readd()` and `loadd()` to load more targets. (They are cached in the hidden
 
 ```{r cache}
 readd(coef_regression2_large)
+
 loadd(small)
+
 head(small)
+
 rm(small)
 cached(small, large)
+
 cached()
+
 built()
+
 imported()
+
 head(read_plan())
+
 head(progress()) # See also in_progress()
+
 progress(large)
-session() # of the last call to make()
+
+drake_session() # of the last call to make()
 ```
 
 The next time you run `make(my_plan)`, nothing will be built because drake knows everything is up to date.
 
 ```{r uptodateinvig}
-make(my_plan)
+config <- make(my_plan) # Will use config later. See also drake_config().
 ```
 
 But if you change one of your functions, commands, or other dependencies, drake will update the affected parts of the workflow. Let's say we want to change the quadratic term to a cubic term in our `reg2()` function.
@@ -323,13 +350,24 @@ The targets depending on `reg2()` need to be rebuilt and everything else is left
 outdated(my_plan, verbose = FALSE)
 ```
 
+**Advanced**: To find out why a target is out of date, you can load the [storr](https://github.com/richfitz/storr)-based cache and compare the appropriate hash keys to the output of `dependency_profile()`.
+
+```{r depprofile}
+dependency_profile(target = "regression2_small", config = config)
+
+config$cache$get_hash(key = "small") # same
+
+config$cache$get_hash(key = "reg2") # different
+```
+
 ```{r graph3quick, eval = FALSE}
 # Hover, click, drag, zoom, and pan.
-plot_graph(my_plan, width = "100%", height = "500px")
+# Same as drake_graph():
+vis_drake_graph(my_plan, width = "100%", height = "500px")
 ```
 
 <iframe
-src = "https://cdn.rawgit.com/wlandau-lilly/drake/74a87231/images/reg2.html"
+src = "https://cdn.rawgit.com/wlandau-lilly/drake/2211b300/images/reg2.html"
 width = "100%" height = "600px" allowtransparency="true"
 style="border: none; box-shadow: none">
 </iframe>
@@ -366,12 +404,14 @@ my_plan
 make(my_plan)
 ```
 
-If you ever need to erase your work, use `clean()`. Any targets removed from the cache will have to be rebuilt on the next call to `make()`, so be careful.
+If you ever need to erase your work, use `clean()`. Any targets removed from the cache will have to be rebuilt on the next call to `make()`, so be careful. You may notice that by default, the size of the cache does not go down very much. To purge old data, you could use `clean(garbage_collection = TRUE)`. To do garbage collection without removing any important targets, use `drake_gc()`.
 
 ```{r cleanup}
-clean(small, reg1) # uncaches individual targets and imported objects
-clean() # cleans all targets out of the cache
-clean(destroy = TRUE) # removes the cache entirely
+# Uncaches individual targets and imported objects.
+clean(small, reg1, verbose = FALSE)
+clean(verbose = FALSE) # Cleans all targets out of the cache.
+drake_gc(verbose = FALSE) # Just garbage collection.
+clean(destroy = TRUE, verbose = FALSE) # removes the cache entirely
 ```
 
 # Automatic watching for changed dependencies
@@ -385,7 +425,7 @@ As you have seen with `reg2()`, `drake` reacts to changes. In other words, `make
 1. Upstream targets.
 1. For [dynamic knitr reports](https://yihui.name/knitr/) (with `knit('your_report.Rmd')` as a command in your workflow plan data frame), targets and imports mentioned in calls to `readd()` and `loadd()` in the code chunks to be evaluated. `Drake` treats these targets and imports as dependencies of the compiled output target (say, 'report.md').
 
-To explore the dependencies, please refer to the `deps()` and `tracked()` functions. Better yet, generate interactive graphs with `plot_graph()` as shown above. Hover over the nodes in the graph to see the content that `drake` watches.
+To explore the dependencies, please refer to the `deps()` and `tracked()` functions. Better yet, generate interactive graphs with `drake_graph()` or `vis_drake_graph()` as shown above. Hover over the nodes in the graph to see the content that `drake` watches.
 
 There is more to reproducibility than just using `drake` to watch for dependencies. [Packrat](https://rstudio.github.io/packrat) creates a tightly-controlled local library of packages to extend the shelf life of your project. And with [Docker](https://www.docker.com/), you can execute your project on a [virtual machine](https://en.wikipedia.org/wiki/Virtual_machine) to ensure platform independence. Together, [packrat](https://rstudio.github.io/packrat) and [Docker](https://www.docker.com/) can help others reproduce your work even if they have different software and hardware.
 
@@ -394,6 +434,6 @@ There is more to reproducibility than just using `drake` to watch for dependenci
 `Drake` has extensive high-performance computing support, from local multicore computing on your laptop to serious supercomputing across multiple nodes of a large cluster. See the [parallelism vignette](https://github.com/wlandau-lilly/drake/blob/master/vignettes/parallelism.Rmd) for the full details.
 
 ```{r endofline_quickstart, echo = F}
-clean(destroy = TRUE)
+clean(destroy = TRUE, verbose = FALSE)
 unlink(c("Makefile", "report.Rmd", "shell.sh", "STDIN.o*", "Thumbs.db"))
 ```

@@ -3,14 +3,8 @@
 #' IMPORTANT: you must be in the root directory of your project.
 #' @export
 #' @seealso \code{\link{missed}}, \code{\link{workplan}},
-#' \code{\link{make}}, \code{\link{plot_graph}}
-#' @examples
-#' \dontrun{
-#' load_basic_example()
-#' outdated(my_plan)
-#' make(my_plan)
-#' outdated(my_plan)
-#' }
+#' \code{\link{make}}, \code{\link{vis_drake_graph}}
+#' @return Character vector of the names of outdated targets.
 #' @param plan same as for \code{\link{make}}
 #' @param targets same as for \code{\link{make}}
 #' @param envir same as for \code{\link{make}}. Overrides
@@ -24,6 +18,7 @@
 #' @param jobs same as for \code{\link{make}}
 #' @param packages same as for \code{\link{make}}
 #' @param prework same as for \code{\link{make}}
+#' @param graph same as for \code{\link{make}}
 #' @param config option internal runtime parameter list of
 #' \code{\link{make}(...)},
 #' produced with \code{\link{config}()}.
@@ -31,27 +26,37 @@
 #' Overrides all the other arguments if not \code{NULL}.
 #' For example,
 #' \code{plan} is replaced with \code{config$plan}.
-#' Computing \code{config}
-#' in advance could save time if you plan multiple calls to
-#' \code{outdated()}.
+#' @param make_imports logical, whether to import external files
+#' and objects from the user's workspace to determine
+#' which targets are up to date. If \code{FALSE}, the computation
+#' is faster, but all the relevant information is drawn from the cache
+#' and may be out of date.
+#' @examples
+#' \dontrun{
+#' load_basic_example() # Load the canonical example of drake.
+#' outdated(my_plan) # Which targets are out of date?
+#' make(my_plan) # Run the projects, build the targets.
+#' # Now, everything should be up to date (no targets listed).
+#' outdated(my_plan)
+#' }
 outdated <-  function(
   plan = workplan(),
   targets = drake::possible_targets(plan),
   envir = parent.frame(),
   verbose = TRUE,
-  hook = function(code){
-    force(code)
-  },
-  cache = drake::get_cache(),
+  hook = default_hook,
+  cache = drake::get_cache(verbose = verbose),
   parallelism = drake::default_parallelism(),
   jobs = 1,
-  packages = (.packages()),
+  packages = rev(.packages()),
   prework = character(0),
-  config = NULL
+  graph = NULL,
+  config = NULL,
+  make_imports = TRUE
 ){
   force(envir)
   if (is.null(config)){
-    config <- config(
+    config <- drake_config(
       plan = plan,
       targets = targets,
       envir = envir,
@@ -61,27 +66,35 @@ outdated <-  function(
       parallelism = parallelism,
       jobs = jobs,
       packages = packages,
-      prework = prework
+      prework = prework,
+      graph = graph
     )
   }
-  config <- inventory(config)
+  if (make_imports){
+    make_imports(config = config)
+  }
   all_targets <- intersect(V(config$graph)$name, config$plan$target)
-  rebuild <- Filter(
-    x = all_targets,
-    f = function(target){
-      hashes <- hashes(target, config)
-      !target_current(target = target, hashes = hashes, config = config)
-    }
-  )
-  if (!length(rebuild)){
+  meta_list <- meta_list(targets = all_targets, config = config)
+  is_outdated <- lightly_parallelize(
+    all_targets,
+    function(target){
+      meta <- meta_list[[target]]
+      should_build_target(target = target, meta = meta, config = config)
+    },
+    jobs = config$jobs
+  ) %>%
+    unlist
+  outdated_targets <- all_targets[is_outdated]
+  if (!length(outdated_targets)){
     return(character(0))
   } else{
-    lapply(
-      rebuild,
+    lightly_parallelize(
+      outdated_targets,
       function(vertex){
         subcomponent(config$graph, v = vertex, mode = "out")$name
-      }
-      ) %>%
+      },
+      jobs = config$jobs
+    ) %>%
     unlist() %>%
     unique() %>%
     sort()
@@ -94,6 +107,7 @@ outdated <-  function(
 #' IMPORTANT: you must be in the root directory of your project.
 #' @export
 #' @seealso \code{\link{outdated}}
+#' @return Character vector of names of missing objects and files.
 #'
 #' @param plan workflow plan data frame, same as for function
 #' \code{\link{make}()}.
@@ -105,8 +119,6 @@ outdated <-  function(
 #' \code{\link{make}()}.
 #'
 #' @param verbose logical, whether to output messages to the console.
-#'
-#' @param hook same as for \code{\link{make}}
 #'
 #' @param jobs The \code{outdated()} function is called internally,
 #' and it needs to import objects and examine your
@@ -124,6 +136,8 @@ outdated <-  function(
 #'
 #' @param prework same as for \code{\link{make}}
 #'
+#' @param graph same as for \code{\link{make}}
+#'
 #' @param config option internal runtime parameter list of
 #' \code{\link{make}(...)},
 #' produced with \code{\link{config}()}.
@@ -135,37 +149,35 @@ outdated <-  function(
 #'
 #' @examples
 #' \dontrun{
-#' load_basic_example()
-#' missed(my_plan)
-#' rm(reg1)
-#' missed(my_plan)
+#' load_basic_example() # Load the canonical example.
+#' missed(my_plan) # All the imported files and objects should be present.
+#' rm(reg1) # Remove an import dependency from you workspace.
+#' missed(my_plan) # Should report that reg1 is missing.
 #' }
 missed <- function(
   plan = workplan(),
   targets = drake::possible_targets(plan),
   envir = parent.frame(),
   verbose = TRUE,
-  hook = function(code){
-    force(code)
-  },
   jobs = 1,
   parallelism = drake::default_parallelism(),
-  packages = (.packages()),
+  packages = rev(.packages()),
   prework = character(0),
+  graph = NULL,
   config = NULL
 ){
   force(envir)
   if (is.null(config)){
-    config <- config(
+    config <- drake_config(
       plan = plan,
       targets = targets,
       envir = envir,
       verbose = verbose,
-      hook = hook,
       parallelism = parallelism,
       jobs = jobs,
       packages = packages,
-      prework = prework
+      prework = prework,
+      graph = graph
     )
   }
   graph <- config$graph

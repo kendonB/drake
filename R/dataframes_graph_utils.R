@@ -23,6 +23,12 @@ arrange_nodes <- function(config){
     resolve_levels(config = config)
 }
 
+shrink_levels <- function(nodes){
+  nodes <- nodes[order(nodes$level), ]
+  nodes$level <- c(0, cumsum(diff(nodes$level) > 0))
+  nodes
+}
+
 can_get_function <- function(x, envir) {
   tryCatch({
     is.function(eval(parse(text = x), envir = envir))
@@ -47,7 +53,7 @@ categorize_nodes <- function(config) {
 
 configure_nodes <- function(config){
   elts <- c(
-    "functions", "in_progress", "missing",
+    "failed", "functions", "in_progress", "missing",
     "outdated", "targets"
   )
   for (elt in elts){
@@ -63,15 +69,17 @@ configure_nodes <- function(config){
 }
 
 #' @title Function default_graph_title
-#' @description Default title of the graph from
-#' \code{\link{plot_graph}()}.
+#' @description Default title of the graph for
+#' \code{\link{vis_drake_graph}()}.
 #' @export
-#' @seealso \code{\link{dataframes_graph}}, \code{\link{plot_graph}}
+#' @seealso \code{\link{dataframes_graph}}, \code{\link{vis_drake_graph}}
 #' @param parallelism Mode of parallelism intended for the workplan.
 #' See \code{\link{parallelism_choices}()}.
 #' @param split_columns logical, whether the columns were split
-#' in \code{\link{dataframes_graph}()} or \code{\link{plot_graph}()}
+#' in \code{\link{dataframes_graph}()} or \code{\link{vis_drake_graph}()}
 #' with the \code{split_columns} argument.
+#' @examples
+#' default_graph_title()
 default_graph_title <- function(
   parallelism = drake::parallelism_choices(distributed_only = FALSE),
   split_columns = FALSE
@@ -85,7 +93,7 @@ default_graph_title <- function(
 }
 
 file_hover_text <- Vectorize(function(quoted_file, targets){
-  unquoted_file <- unquote(quoted_file)
+  unquoted_file <- drake_unquote(quoted_file)
   if (quoted_file %in% targets | !file.exists(unquoted_file))
     return(quoted_file)
   tryCatch({
@@ -141,7 +149,7 @@ missing_import <- function(x, envir) {
     FALSE
   },
   error = function(e) TRUE)
-  missing_file <- is_file(x) & !file.exists(unquote(x))
+  missing_file <- is_file(x) & !file.exists(drake_unquote(x))
   missing_object | missing_file
 }
 
@@ -153,7 +161,7 @@ resolve_levels <- function(config) {
     keep_these <- setdiff(V(graph)$name, rownames(nodes))
     graph_remaining_targets <- delete_vertices(graph, v = keep_these)
     while (length(V(graph_remaining_targets))) {
-      candidates <- next_targets(graph_remaining_targets)
+      candidates <- next_targets(graph_remaining_targets, jobs = jobs)
       if (length(candidates)){
         nodes[candidates, "level"] <- level
         level <- level + 1
@@ -167,14 +175,29 @@ resolve_levels <- function(config) {
 
 resolve_levels_distributed <- function(config) { # nolint
   with(config, {
+    targets <- intersect(plan$target, nodes$id)
+    imports <- setdiff(nodes$id, targets)
+    if (!length(targets) | !length(imports)){
+      return(resolve_levels(config))
+    }
     graph_imports <- delete_vertices(graph, v = targets)
     graph_targets <- delete_vertices(graph, v = imports)
     nodes_imports <- nodes[nodes$id %in% imports, ]
     nodes_targets <- nodes[nodes$id %in% targets, ]
     nodes_imports <- resolve_levels(
-      config = list(nodes = nodes_imports, graph = graph_imports))
+      config = list(
+        nodes = nodes_imports,
+        graph = graph_imports,
+        jobs = config$jobs
+      )
+    )
     nodes_targets <- resolve_levels(
-      config = list(nodes = nodes_targets, graph = graph_targets))
+      config = list(
+        nodes = nodes_targets,
+        graph = graph_targets,
+        jobs = config$jobs
+      )
+    )
     nodes_imports$level <- nodes_imports$level - max(nodes_imports$level)
     rbind(nodes_imports, nodes_targets)
   })
@@ -204,6 +227,7 @@ split_node_columns <- function(nodes){
       old_levels = stage$level, max_reps = max_reps)
     stage
   })
+  rownames(out) <- out$id
   out$level <- as.integer(as.factor(out$level))
   out
 }
@@ -224,18 +248,31 @@ style_nodes <- function(config) {
   })
 }
 
+subset_nodes_edges <- function(config, keep, choices = V(config$graph)$name){
+  keep <- sanitize_nodes(nodes = keep, choices = choices)
+  config$nodes <- config$nodes[keep, ]
+  config$edges <-
+    config$edges[
+      config$edges$from %in% keep &
+      config$edges$to %in% keep, ]
+  config
+}
+
 #' @title Function legend_nodes
 #' @export
 #' @seealso \code{\link{drake_palette}()},
-#' \code{\link{plot_graph}()},
+#' \code{\link{vis_drake_graph}()},
 #' \code{\link{dataframes_graph}()}
 #' @description Output a \code{visNetwork}-friendly
 #' data frame of nodes. It tells you what
 #' the colors and shapes mean
-#' in \code{\link{plot_graph}()}.
+#' in \code{\link{vis_drake_graph}()}.
 #' @param font_size font size of the node label text
+#' @return A data frame of legend nodes for \code{\link{vis_drake_graph}()}.
 #' @examples
 #' \dontrun{
+#' # Show the legend nodes used in vis_drake_graph().
+#' # For example, you may want to inspect the color palette more closely.
 #' visNetwork::visNetwork(nodes = legend_nodes())
 #' }
 legend_nodes <- function(font_size = 20) {

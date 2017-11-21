@@ -6,10 +6,10 @@
 \usage{
 rate_limiting_times(plan = workplan(), from_scratch = FALSE,
   targets_only = FALSE, targets = drake::possible_targets(plan),
-  envir = parent.frame(), verbose = TRUE, hook = function(code) {    
-  force(code) }, cache = drake::get_cache(path = path, search = search),
+  envir = parent.frame(), verbose = TRUE, hook = default_hook,
+  cache = drake::get_cache(path = path, search = search, verbose = verbose),
   parallelism = drake::default_parallelism(), jobs = 1,
-  future_jobs = jobs, packages = (.packages()), prework = character(0),
+  future_jobs = jobs, packages = rev(.packages()), prework = character(0),
   config = NULL, digits = 3, path = getwd(), search = TRUE)
 }
 \arguments{
@@ -69,6 +69,10 @@ not the cache itself.}
 \item{search}{logical, whether to search back in the file system
 for the cache.}
 }
+\value{
+A data frame of times of the worst-case scenario
+rate-limiting targets in each parallelizable stage.
+}
 \description{
 Return a data frame of elapsed build times of
 the rate-limiting targets of a \code{\link{make}()} workplan.
@@ -96,16 +100,20 @@ will warn you and tell you which targets have missing times.
 }
 \examples{
 \dontrun{
-load_basic_example()
-make(my_plan)
-rate_limiting_times(my_plan) # everything is up to date
-rate_limiting_times(my_plan, from_scratch  = TRUE, digits = 4) # 1 job
+load_basic_example() # Load drake's canonical example.
+make(my_plan) # Run the project, build the targets.
+rate_limiting_times(my_plan) # Everything is up to date.
+# Assume everything runs from scratch with 1 job.
+rate_limiting_times(my_plan, from_scratch  = TRUE, digits = 4)
+# With 2 jobs, some of the targets are not rate-limiting.
 rate_limiting_times(
   my_plan,
   future_jobs = 2,
   from_scratch = TRUE,
   digits = 4
 )
+# What if we just build the 'small' and 'large' targets,
+# plus dependencies?
 rate_limiting_times(
   my_plan,
   targets = c("small", "large"),

@@ -17,7 +17,7 @@ workplan(..., list = character(0), file_targets = FALSE,
 \item{strings_in_dots}{same as for \code{drake::\link{workplan}()}}
 }
 \value{
-data frame of targets and command
+A data frame of targets and commands.
 }
 \description{
 Turns a named collection of command/target pairs into
@@ -40,6 +40,7 @@ arguments in \code{...}, so use the \code{strings_in_dots}
 argument to control the quoting in \code{...}.
 }
 \examples{
+# Create example workflow plan data frames for make()
 workplan(small = simulate(5), large = simulate(50))
 workplan(list = c(x = "1 + 1", y = "sqrt(x)"))
 workplan(data = readRDS("my_data.rds"))

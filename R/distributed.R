@@ -7,45 +7,46 @@ prepare_distributed <- function(config){
       file = globalenv_file(this_cache_path)
     )
   }
-  config$attempted_targets <- outdated(
-    plan = config$plan,
-    targets = config$targets,
-    envir = config$envir,
-    verbose = config$verbose,
-    cache = config$cache,
-    jobs = config$jobs,
-    parallelism = config$parallelism,
-    packages = config$packages,
-    prework = config$prework
-  )
-  config$cache$set("config", config, namespace = "distributed")
-  invisible(config)
+  config$cache$set(key = "envir", value = config$envir, namespace = "config")
+  build_these <- outdated(config = config, make_imports = !config$skip_imports)
+  increment_attempt_flag(targets = build_these, config = config)
+  invisible(build_these)
+}
+
+finish_distributed <- function(config){
+  dir <- cache_path(config$cache)
+  file <- globalenv_file(dir)
+  unlink(file, force = TRUE)
 }
 
 build_distributed <- function(target, cache_path){
-  cache <- this_cache(cache_path)
-  config <- cache$get("config", namespace = "distributed")
-  if (identical(globalenv(), config$envir)){
-    dir <- cache_path
-    file <- globalenv_file(dir)
-    load(file = file, envir = config$envir)
-  }
-  config <- inventory(config)
+  config <- recover_drake_config(cache_path = cache_path)
   do_prework(config = config, verbose_packages = FALSE)
   prune_envir(targets = target, config = config)
-  hash_list <- hash_list(targets = target, config = config)
+  meta_list <- meta_list(targets = target, config = config)
   config$old_hash <- self_hash(target = target, config = config)
-  current <- target_current(
+  do_build <- should_build_target(
     target = target,
-    hashes = hash_list[[target]],
+    meta = meta_list[[target]],
     config = config
   )
-  if (!current){
-    build(
+  if (do_build){
+    drake_build(
       target = target,
-      hash_list = hash_list,
+      meta_list = meta_list,
       config = config
     )
   }
-  invisible(config)
+  invisible()
+}
+
+recover_drake_config <- function(cache_path){
+  cache <- this_cache(cache_path, verbose = FALSE)
+  config <- read_drake_config(cache = cache)
+  if (identical(globalenv(), config$envir)){
+    dir <- cache_path(cache = cache)
+    file <- globalenv_file(dir)
+    load(file = file, envir = config$envir)
+  }
+  config
 }

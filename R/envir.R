@@ -9,11 +9,12 @@ assign_to_envir <- Vectorize(
   )
 
 prune_envir <- function(targets, config){
-  downstream <- lapply(
+  downstream <- lightly_parallelize(
     targets,
     function(vertex){
       subcomponent(config$graph, v = vertex, mode = "out")$name
-    }
+    },
+    jobs = config$jobs
   ) %>%
     unlist() %>%
     unique()
@@ -34,7 +35,7 @@ prune_envir <- function(targets, config){
   if (length(discard_these)){
     console_many_targets(
       discard_these,
-      message = "unload",
+      pattern = "unload",
       config = config
     )
     rm(list = discard_these, envir = config$envir)
@@ -42,10 +43,11 @@ prune_envir <- function(targets, config){
   if (length(load_these)){
     console_many_targets(
       load_these,
-      message = "load",
+      pattern = "load",
       config = config
     )
-    loadd(list = load_these, envir = config$envir, cache = config$cache)
+    loadd(list = load_these, envir = config$envir, cache = config$cache,
+          verbose = FALSE)
   }
   invisible()
 }

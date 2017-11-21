@@ -3,7 +3,7 @@ run_Makefile <- function( #nolint: we want Makefile capitalized.
   run = TRUE,
   debug = FALSE
 ){
-  config <- prepare_distributed(config = config)
+  build_these <- prepare_distributed(config = config)
   with_output_sink(
     new = "Makefile",
     code = {
@@ -11,16 +11,14 @@ run_Makefile <- function( #nolint: we want Makefile capitalized.
       makefile_rules(config)
     }
   )
-  time_stamps(config = config)
+  time_stamps(build_these = build_these, config = config)
   error_code <- ifelse(
     run,
     system2(command = config$command, args = config$args),
     0
   )
   if (!debug){
-    dir <- cache_path(config$cache)
-    file <- globalenv_file(dir)
-    unlink(file, force = TRUE)
+    finish_distributed(config = config)
   }
   return(invisible(config))
 }
@@ -71,15 +69,17 @@ build_recipe <- function(target, recipe_command,
     cache_path <- cache_value_macro
   }
   if (is_file(target)){
-    target <- paste0("drake::as_file(\"", eply::unquote(target), "\")")
+    target <- paste0("drake::as_drake_filename(\"",
+      drake::drake_unquote(target), "\")")
   } else{
-    target <- eply::quotes(
-      eply::unquote(target), single = FALSE)
+    target <- drake::drake_quotes(
+      drake::drake_unquote(target), single = FALSE)
   }
   r_recipe <- paste0("drake::mk(target = ", target,
     ", cache_path = \"", cache_path, "\")")
   if (!safe_grepl(r_recipe_wildcard(), recipe_command)){
-    recipe_command <- paste0(recipe_command, " '", r_recipe_wildcard(), "'")
+    recipe_command <- paste0(recipe_command, " '",
+      r_recipe_wildcard(), "'")
   }
   gsub(r_recipe_wildcard(), r_recipe, recipe_command)
 }
@@ -87,16 +87,34 @@ build_recipe <- function(target, recipe_command,
 #' @title Function \code{mk}
 #' @description Internal drake function to be called
 #' inside Makefiles only. Makes a single target.
-#' Users, do not invoke directly.
+#' Users should not need to invoke this function directly.
 #' @export
+#' @return \code{NULL}
 #' @param target name of target to make
 #' @param cache_path path to the drake cache
+#' @examples
+#' \dontrun{
+#' # This function is meant to be part of Makefile recipes for
+#' # make(..., parallelism = "Makefile").
+#' # These examples peer into the internals of drake,
+#' # but are not really of practical use for most users.
+#' load_basic_example() # Load drake's canonical example.
+#' con <- drake_config(my_plan) # Construct the internal configuration list.
+#' # Prepare to use a distributed computing parallel backend
+#' # such as "Makefile" or "future_lapply".
+#' build_these <- drake:::prepare_distributed(config = con)
+#' # Write the dummy timestamp files usually written at the beginning
+#' # of make(..., parallelism = "Makefile").
+#' time_stamps(build_these = build_these, config = con)
+#' # Use mk() to build a target. Usually called inside a Makefile recipe.
+#' mk(target = "small", cache_path = default_cache_path())
+#' }
 mk <- function(
   target = character(0),
   cache_path = drake::default_cache_path()
 ){
-  config <- build_distributed(target = target, cache_path = cache_path)
-  config <- inventory(config)
+  build_distributed(target = target, cache_path = cache_path)
+  config <- recover_drake_config(cache_path)
   new_hash <- self_hash(target = target, config = config)
   if (!identical(config$old_hash, new_hash)){
     file <- time_stamp_file(target = target, config = config)
@@ -105,17 +123,20 @@ mk <- function(
   return(invisible())
 }
 
-#' @title Function \code{default_system2_args}
-#' @description Configures default
-#' arguments to \code{\link{system2}()} to run Makefiles.
+#' @title Function \code{default_Makefile_args}
+#' @description For \code{make(..., parallelism = "Makefile")},
+#' this function configures the default
+#' arguments to \code{\link{system2}()}.
+#' It is an internal function, and most users do not need to
+#' worry about it.
 #' @export
 #' @return \code{args} for \code{\link{system2}(command, args)}
 #' @param jobs number of jobs
 #' @param verbose logical, whether to be verbose
 #' @examples
-#' default_system2_args(jobs = 2, verbose = FALSE)
-#' default_system2_args(jobs = 4, verbose = TRUE)
-default_system2_args <- function(jobs, verbose){
+#' default_Makefile_args(jobs = 2, verbose = FALSE)
+#' default_Makefile_args(jobs = 4, verbose = TRUE)
+default_Makefile_args <- function(jobs, verbose){
   out <- paste0("--jobs=", jobs)
   if (!verbose){
     out <- c(out, "--silent")
@@ -125,7 +146,10 @@ default_system2_args <- function(jobs, verbose){
 
 #' @title Function \code{default_Makefile_command}
 #' @description Give the default \code{command}
-#' argument to \code{\link{make}()}
+#' argument to \code{\link{make}()}. Relevant for
+#' \code{"Makefile"} parallelism only.
+#' @return A character scalar naming a Linux/Unix command
+#' to run a Makefile.
 #' @export
 #' @examples
 #' default_Makefile_command()

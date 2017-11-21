@@ -4,31 +4,48 @@
 #' Also writes/overwrites the file \code{report.Rmd}.
 #' For a thorough walkthrough of how to set up this example, see the
 #' quickstart vignette: \code{vignette('quickstart')}. Alternatively,
-#' call \code{\link{example_drake}('basic')} to generate an R script
+#' call \code{\link{drake_example}('basic')} to generate an R script
 #' that builds up this example step by step.
 #' @export
+#' @return The workflow plan data frame of the basic example.
 #' @param envir The environment to load the example into.
 #' Defaults to your workspace.
 #' For an insulated workspace,
 #' set \code{envir = new.env(parent = globalenv())}.
-#' @param to where to write the dynamic report source file
+#' @param report_file where to write the report file \code{report.Rmd}.
+#' @param to deprecated, where to write the dynamic report source file
 #' \code{report.Rmd}
 #' @param overwrite logical, whether to overwrite an
 #' existing file \code{report.Rmd}
 #' @examples
 #' \dontrun{
+#' # Populate your workspace and write 'report.Rmd'.
 #' load_basic_example()
+#' # Check the dependencies of an imported function.
 #' deps(reg1)
+#' # Check the dependencies of commands in the workflow plan.
 #' deps(my_plan$command[1])
 #' deps(my_plan$command[4])
-#' plot_graph(my_plan)
+#' # Plot the interactive network visualization of the workflow.
+#' vis_drake_graph(my_plan)
+#' # Run the workflow to build all the targets in the plan.
 #' make(my_plan)
+#' # Remove the whole cache.
 #' clean(destroy = TRUE)
+#' # Clean up the imported file.
 #' unlink('report.Rmd')
 #' }
 load_basic_example <- function(
-  envir = parent.frame(), to = getwd(), overwrite = TRUE
+  envir = parent.frame(), report_file = "report.Rmd", overwrite = FALSE,
+  to = report_file
 ){
+  if (to != report_file){
+    warning(
+      "In load_basic_example(), argument 'to' is deprecated. ",
+      "Use 'report_file' instead."
+    )
+  }
+
   eval(parse(text = "base::require(drake, quietly = TRUE)"))
   eval(parse(text = "base::require(knitr, quietly = TRUE)"))
 
@@ -56,21 +73,21 @@ load_basic_example <- function(
   datasets <- workplan(small = simulate(5), large = simulate(50))
 
   methods <- workplan(list = c(
-    regression1 = "reg1(..dataset..)",
-    regression2 = "reg2(..dataset..)"))
+    regression1 = "reg1(dataset__)",
+    regression2 = "reg2(dataset__)"))
 
-  # same as evaluate(methods, wildcard = '..dataset..', values
-  # = datasets$output)
-  analyses <- analyses(methods, datasets = datasets)
+  # Same as evaluate_plan(methods, wildcard = 'dataset__',
+  #   values = datasets$output).
+  analyses <- plan_analyses(methods, datasets = datasets)
 
   summary_types <- workplan(list = c(
-    summ = "suppressWarnings(summary(..analysis..))",
-    coef = "coefficients(..analysis..)"))
+    summ = "suppressWarnings(summary(analysis__))",
+    coef = "coefficients(analysis__)"))
 
-  # summaries() also uses evaluate(): once with expand = TRUE,
+  # plan_summaries() also uses evaluate_plan(): once with expand = TRUE,
   # once with expand = FALSE
   # skip 'gather' (workplan my_plan is more readable)
-  results <- summaries(summary_types, analyses, datasets, gather = NULL)
+  results <- plan_summaries(summary_types, analyses, datasets, gather = NULL)
 
   # External file targets and dependencies should be
   # single-quoted.  Use double quotes to remove any special
@@ -91,7 +108,9 @@ load_basic_example <- function(
     package = "drake",
     mustWork = TRUE
   )
-  file.copy(from = report, to = to, overwrite = overwrite)
-
+  if (file.exists(report_file) & overwrite){
+    warning("Overwriting file 'report.Rmd'.")
+  }
+  file.copy(from = report, to = report_file, overwrite = overwrite)
   invisible(envir$my_plan)
 }

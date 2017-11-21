@@ -5,7 +5,7 @@
 \title{Function \code{built}}
 \usage{
 built(path = getwd(), search = TRUE, cache = drake::get_cache(path = path,
-  search = search))
+  search = search, verbose = verbose), verbose = TRUE)
 }
 \arguments{
 \item{path}{Root directory of the drake project,
@@ -18,9 +18,11 @@ current working directory only.}
 
 \item{cache}{drake cache. See \code{\link{new_cache}()}.
 If supplied, \code{path} and \code{search} are ignored.}
+
+\item{verbose}{whether to print console messages}
 }
 \value{
-list of imported objects in the cache
+Character vector naming the built targets in the cache.
 }
 \description{
 List all the built (non-imported) objects in the drake
@@ -28,9 +30,10 @@ cache.
 }
 \examples{
 \dontrun{
-load_basic_example()
-make(my_plan)
-built()
+load_basic_example() # Load drake's canonical example.
+make(my_plan) # Run the project, build all the targets.
+built() # List all the cached targets (built objects and files).
+# For file targets, only the fingerprints/hashes are stored.
 }
 }
 \seealso{
