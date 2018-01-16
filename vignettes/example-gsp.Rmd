@@ -139,7 +139,7 @@ output_plan <- drake_plan(
 head(output_plan)
 ```
 
-At this point, we can gather together the whole workflow plan.
+At this point, we can gather together the whole workflow plan. Because `drake` handles the sequence in which things run, these can be in any order you like.
 
 ```{r wholeplan}
 whole_plan <- rbind(model_plan, rmspe_plan, rmspe_results_plan, output_plan)
