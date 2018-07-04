@@ -37,7 +37,7 @@ mc_ensure_workers <- function(config){
     },
     FUN.VALUE = character(1)
   )
-  while (!all(file.exists(paths))){
+  while (!any(file.exists(paths))){
     Sys.sleep(mc_wait) # nocov
   }
 }
